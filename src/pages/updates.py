@@ -1,17 +1,23 @@
 import os
+import shutil
 import subprocess
 import tempfile
 import threading
+from datetime import datetime
+from pathlib import Path
 from gi.repository import Gtk, Adw, GLib
 from src.lang import t
+from src.safe_io import atomic_write_json, read_json
+
+UPDATE_HISTORY = Path.home() / ".config" / "caelestia-settings" / "update_history.json"
 
 # Schritte die das Update-Skript durchläuft — wird als Fortschritt angezeigt
 UPDATE_STEPS = [
-    ("yay -Syu",         "System-Pakete aktualisieren…"),
-    ("hyprlock",         "hyprlock aktualisieren…"),
-    ("swww",             "swww aktualisieren…"),
-    ("pipewire",         "Audio-Dienste neu starten…"),
-    ("reboot",           "Neustart wird vorbereitet…"),
+    ("yay -Syu",         t("Updating system packages…")),
+    ("hyprlock",         t("Updating hyprlock…")),
+    ("swww",             t("Updating swww…")),
+    ("pipewire",         t("Restarting audio services…")),
+    ("reboot",           t("Preparing reboot…")),
 ]
 
 UPDATE_SCRIPT = """#!/usr/bin/env bash
@@ -35,14 +41,14 @@ trap 'rm -f "$_ASKPASS"; unset _SUDO_PASS SUDO_ASKPASS' EXIT
 
 sudo -A -v
 
-echo "::step:: System-Pakete aktualisieren…"
+echo "::step:: Aktualizando paquetes del sistema…"
 yay -Syu --needed hyprlock swww --noconfirm
-echo "::step:: Audio-Dienste neu starten…"
+echo "::step:: Reiniciando servicios de audio…"
 systemctl --user restart pipewire.service pipewire-pulse.service wireplumber.service
 
 echo "::done::"
 if [[ "$1" == "-r" ]]; then
-    echo "::step:: Neustart wird vorbereitet…"
+    echo "::step:: Preparando reinicio…"
     sleep 5
     sudo -A reboot
 fi
@@ -70,6 +76,16 @@ class UpdatePage(Gtk.Box):
             subtitle=t("Restarts system automatically after update")
         )
         settings_group.add(self.reboot_row)
+
+        self.available_group = Adw.PreferencesGroup(title=t("Available updates"))
+        refresh_btn = Gtk.Button(icon_name="view-refresh-symbolic")
+        refresh_btn.set_tooltip_text(t("Check for updates"))
+        refresh_btn.connect("clicked", lambda _b: self._refresh_available())
+        self.available_group.set_header_suffix(refresh_btn)
+        self.available_row = Adw.ActionRow(title=t("Checking for updates…"))
+        self.available_group.add(self.available_row)
+        self.append(self.available_group)
+        self._refresh_available()
 
         # Start-Button
         btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
@@ -138,6 +154,88 @@ class UpdatePage(Gtk.Box):
         self.result_banner.set_revealed(False)
         self.append(self.result_banner)
 
+        self.history_group = Adw.PreferencesGroup(title=t("Update history"))
+        self.history_group.set_margin_start(12)
+        self.history_group.set_margin_end(12)
+        self.append(self.history_group)
+        self._load_history()
+
+    # ── Available updates & history ───────────────────────────────────────
+
+    def _refresh_available(self) -> None:
+        self.available_row.set_title(t("Checking for updates…"))
+        self.available_row.set_subtitle("")
+
+        def worker() -> None:
+            if shutil.which("checkupdates"):
+                out = ""
+                try:
+                    result = subprocess.run(
+                        ["checkupdates"], capture_output=True, text=True, timeout=60
+                    )
+                    out = result.stdout
+                except (OSError, subprocess.TimeoutExpired):
+                    out = ""
+            else:
+                try:
+                    result = subprocess.run(
+                        ["pacman", "-Qu"], capture_output=True, text=True, timeout=30
+                    )
+                    out = result.stdout
+                except (OSError, subprocess.TimeoutExpired):
+                    out = ""
+            packages = [line for line in out.splitlines() if line.strip()]
+            GLib.idle_add(self._apply_available, packages)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_available(self, packages: list[str]) -> bool:
+        if not packages:
+            self.available_row.set_title(t("No updates available"))
+            self.available_row.set_subtitle("")
+            return False
+        names = ", ".join(line.split()[0] for line in packages[:5])
+        if len(packages) > 5:
+            names += f" … (+{len(packages) - 5})"
+        self.available_row.set_title(f"{len(packages)} {t('update(s) available')}")
+        self.available_row.set_subtitle(names)
+        return False
+
+    def _load_history(self) -> None:
+        for row in getattr(self, "_history_rows", []):
+            try:
+                self.history_group.remove(row)
+            except Exception:
+                pass
+        self._history_rows = []
+        history = read_json(UPDATE_HISTORY, {}).get("entries", [])
+        if not history:
+            row = Adw.ActionRow(title=t("No updates recorded yet"))
+            self.history_group.add(row)
+            self._history_rows.append(row)
+            return
+        for entry in history[-5:][::-1]:
+            row = Adw.ActionRow(
+                title=entry.get("time", "?"),
+                subtitle=("✓ " if entry.get("success") else "✗ ") + entry.get("message", ""),
+            )
+            self.history_group.add(row)
+            self._history_rows.append(row)
+
+    def _record_history(self, success: bool, message: str) -> None:
+        data = read_json(UPDATE_HISTORY, {})
+        entries = data.get("entries", [])
+        entries.append(
+            {
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "success": success,
+                "message": message,
+            }
+        )
+        data["entries"] = entries[-50:]
+        atomic_write_json(UPDATE_HISTORY, data)
+        self._load_history()
+
     # ── Update starten ────────────────────────────────────────────────────
 
     def _on_start_clicked(self, _btn):
@@ -176,7 +274,7 @@ class UpdatePage(Gtk.Box):
 
         dialog.set_extra_child(box)
         dialog.add_response("cancel", t("Cancel"))
-        dialog.add_response("ok",     "Update starten")
+        dialog.add_response("ok",     t("Start update"))
         dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("ok")
 
@@ -217,8 +315,10 @@ class UpdatePage(Gtk.Box):
 
         # Skript in user-only tempfile schreiben
         fd, script_path = tempfile.mkstemp(suffix=".sh")
+        helper = "paru" if shutil.which("paru") and not shutil.which("yay") else "yay"
+        script = UPDATE_SCRIPT.replace("yay ", f"{helper} ", 1)
         with os.fdopen(fd, "w") as f:
-            f.write(UPDATE_SCRIPT)
+            f.write(script)
         os.chmod(script_path, 0o700)
 
         args = [script_path]
@@ -254,7 +354,7 @@ class UpdatePage(Gtk.Box):
                     fraction = min(step_count / max(total_steps, 1), 0.95)
                     GLib.idle_add(self._update_step, msg, fraction)
                 elif line == "::done::":
-                    GLib.idle_add(self._update_step, "Fertig!", 1.0)
+                    GLib.idle_add(self._update_step, t("Done!"), 1.0)
                 else:
                     GLib.idle_add(self._append_log, line)
 
@@ -265,19 +365,19 @@ class UpdatePage(Gtk.Box):
                 GLib.idle_add(self._on_finished, True, t("Update successful."))
                 subprocess.run([
                     "notify-send", "Caelestia Settings",
-                    "System-Update erfolgreich abgeschlossen.",
+                    "System update completed successfully.",
                     "--icon=software-update-available", "--urgency=normal",
                 ], capture_output=True)
             else:
-                GLib.idle_add(self._on_finished, False, f"Update fehlgeschlagen (Exit-Code {rc}).")
+                GLib.idle_add(self._on_finished, False, t("Update failed (exit code {code}).").format(code=rc))
                 subprocess.run([
                     "notify-send", "Caelestia Settings",
-                    f"Update fehlgeschlagen (Exit-Code {rc}).",
+                    t("Update failed (exit code {code}).").format(code=rc),
                     "--icon=dialog-error", "--urgency=critical",
                 ], capture_output=True)
 
         except Exception as e:
-            GLib.idle_add(self._on_finished, False, f"Fehler: {e}")
+            GLib.idle_add(self._on_finished, False, t("Error: {error}").format(error=e))
         finally:
             if script_path:
                 try:
@@ -314,3 +414,7 @@ class UpdatePage(Gtk.Box):
         self.result_banner.set_title(message)
         self.result_banner.set_revealed(True)
         self.main_window.add_toast(Adw.Toast.new(message))
+        try:
+            self._record_history(success, message)
+        except Exception as exc:
+            print(f"Update history failed: {exc}")

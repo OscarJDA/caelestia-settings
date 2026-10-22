@@ -27,9 +27,9 @@ echo
 
 # --- 2. Install system dependencies ---
 echo ">>> STEP 1: Installing system dependencies..."
-echo "The script requires 'python-gobject', 'libadwaita', 'pamixer', 'git' and 'rust'."
+echo "The script requires 'python-gobject', 'libadwaita', 'pamixer', 'git', 'rust' and 'lua'."
 echo "Please enter your sudo password:"
-sudo pacman -S --needed --noconfirm python-gobject libadwaita pamixer git python-psutil python-cairo rust
+sudo pacman -S --needed --noconfirm python-gobject libadwaita pamixer git python-psutil python-cairo rust lua bluez-utils brightnessctl cliphist grim slurp wf-recorder ddcutil gammastep gtksourceview5
 echo "--- Dependencies installed."
 echo
 
@@ -113,6 +113,13 @@ else
     echo "WARNING: 'uninstall.sh' not found. The in-app uninstall button will not be available."
 fi
 
+# Copy diagnostics script (used by the Diagnostics page)
+if [ -f "$SCRIPT_DIR/doctor.sh" ]; then
+    echo "   ...Copying 'doctor.sh' to $APP_DATA_DIR"
+    cp "$SCRIPT_DIR/doctor.sh" "$APP_DATA_DIR/"
+    chmod +x "$APP_DATA_DIR/doctor.sh"
+fi
+
 # Copy manifest
 if [ -f "$MANIFEST_SRC" ]; then
     echo "   ...Copying 'manifest.json' to $APP_DATA_DIR"
@@ -184,17 +191,19 @@ RULES_CONFIG_FILE="$HYPR_INCLUDES_DIR/rules.conf"
 source "$SCRIPT_DIR/doctor.sh"
 run_hyprland_doctor
 
-NEW_RULES_TAG="# Caelestia Settings Rules"
-if ! grep -q -F "$NEW_RULES_TAG" "$RULES_CONFIG_FILE"; then
-    echo "   ...Writing window rules to $RULES_CONFIG_FILE."
-    cat >> "$RULES_CONFIG_FILE" <<- EOM
+if ! is_lua_mode; then
+    NEW_RULES_TAG="# Caelestia Settings Rules"
+    if ! grep -q -F "$NEW_RULES_TAG" "$RULES_CONFIG_FILE"; then
+        echo "   ...Writing window rules to $RULES_CONFIG_FILE."
+        cat >> "$RULES_CONFIG_FILE" <<- EOM
 
 $NEW_RULES_TAG
 windowrule = float true, match:class org\.caelestia\.settings
 windowrule = center 1, match:class org\.caelestia\.settings
 EOM
-else
-    echo "   ...Window rules already exist in rules.conf."
+    else
+        echo "   ...Window rules already exist in rules.conf."
+    fi
 fi
 
 echo "--- Hyprland configuration done."
@@ -215,7 +224,5 @@ echo "2. From the terminal with 'caelestia-settings'"
 echo "3. With 'Super + I'"
 echo
 echo "--- Optional: Remove the Super+I shortcut ---"
-echo "To disable the Super+I keybind, remove the following line"
-echo "from your '~/.config/hypr/hyprland.conf':"
-echo
-echo "bind = SUPER, I, exec, caelestia-settings"
+echo "To disable the Super+I keybind, remove the caelestia-settings line"
+echo "from '~/.config/caelestia/hypr-user.lua' (Caelestia 2.5.0+) or '~/.config/hypr/hyprland.conf'."

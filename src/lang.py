@@ -1,15 +1,25 @@
 import locale
 
+from src.app_prefs import get_language_preference
+
 sys_lang = locale.getdefaultlocale()[0]
 if not sys_lang:
     sys_lang = 'en'
 
-# Set to True to force German, False to force English
-# Remove this override for automatic language detection
-# IS_GERMAN = False
-IS_GERMAN = sys_lang.startswith('de')
 
-TRANSLATIONS = {
+def _system_language() -> str:
+    code = (sys_lang or "en").lower()
+    if code.startswith("de"):
+        return "de"
+    if code.startswith("es"):
+        return "es_MX"
+    return "en"
+
+
+_language_pref = get_language_preference()
+LANGUAGE = _system_language() if _language_pref == "auto" else _language_pref
+
+TRANSLATIONS_DE = {
     # ── Window ────────────────────────────────────────────────────────────
     "Caelestia Settings": "Caelestia Einstellungen",
     "Update App": "App aktualisieren",
@@ -86,10 +96,15 @@ TRANSLATIONS = {
     "Position": "Position",
     "Size": "Größe",
     "Invert colors": "Farben invertieren",
-    "Top right": "Oben rechts",
     "Top left": "Oben links",
-    "Bottom right": "Unten rechts",
+    "Top center": "Oben zentriert",
+    "Top right": "Oben rechts",
+    "Middle left": "Mitte links",
+    "Middle center": "Zentriert",
+    "Middle right": "Mitte rechts",
     "Bottom left": "Unten links",
+    "Bottom center": "Unten zentriert",
+    "Bottom right": "Unten rechts",
     "No images found.\nPlace images in the wallpaper folder.": "Keine Bilder gefunden.\nBilder in ~/Bilder/Wallpapers/ ablegen.",
     "No videos found.\nPlace videos in ~/Videos/Wallpaper/": "Keine Videos gefunden.\nVideos in ~/Videos/Wallpaper/ ablegen.",
     "Color scheme: ": "Farbschema: ",
@@ -131,6 +146,76 @@ TRANSLATIONS = {
     "Keybind saved and Hyprland reloaded.": "Keybind gespeichert und Hyprland neu geladen.",
     "Keybind deleted.": "Keybind gelöscht.",
     "Key and dispatcher are required.": "Taste und Dispatcher sind erforderlich.",
+
+    # ── Keybinds: descriptions of what a shortcut does ────────────────────
+    "Close active window": "Aktives Fenster schließen",
+    "Toggle floating": "Schweben umschalten",
+    "Toggle fullscreen": "Vollbild umschalten",
+    "Pin window": "Fenster anheften",
+    "Center window": "Fenster zentrieren",
+    "Move window (drag)": "Fenster verschieben (ziehen)",
+    "Resize window": "Fenster skalieren",
+    "Cycle through windows": "Fenster durchwechseln",
+    "Move window": "Fenster verschieben",
+    "Change focus": "Fokus wechseln",
+    "Toggle window group": "Fenstergruppe umschalten",
+    "Next window in group": "Nächstes Fenster in der Gruppe",
+    "Previous window in group": "Vorheriges Fenster in der Gruppe",
+    "Lock active group": "Aktive Gruppe sperren",
+    "Toggle special workspace": "Spezial-Workspace umschalten",
+    "Open app launcher": "App-Launcher öffnen",
+    "Session and power menu": "Sitzungs- und Energie-Menü",
+    "Toggle sidebar": "Seitenleiste umschalten",
+    "Clear notifications": "Benachrichtigungen leeren",
+    "Show all panels": "Alle Panels anzeigen",
+    "Lock screen": "Bildschirm sperren",
+    "Screenshot a region": "Screenshot eines Bereichs",
+    "Screenshot (frozen screen)": "Screenshot (eingefrorener Bildschirm)",
+    "Brightness up": "Helligkeit erhöhen",
+    "Brightness down": "Helligkeit verringern",
+    "Play / pause media": "Medien abspielen / pausieren",
+    "Next track": "Nächster Titel",
+    "Previous track": "Vorheriger Titel",
+    "Stop media": "Wiedergabe stoppen",
+    "Toggle system monitor workspace": "Systemmonitor-Workspace umschalten",
+    "Toggle music workspace": "Musik-Workspace umschalten",
+    "Toggle communication workspace": "Kommunikations-Workspace umschalten",
+    "Toggle to-do workspace": "To-do-Workspace umschalten",
+    "Toggle {ws} workspace": "{ws}-Workspace umschalten",
+    "Move window to workspace": "Fenster auf Workspace verschieben",
+    "Go to workspace": "Zu Workspace wechseln",
+    "(group)": "(Gruppe)",
+    "Resize the active window": "Aktives Fenster skalieren",
+    "Resize window to {x}% × {y}% of the screen": "Fenster auf {x}% × {y}% des Bildschirms skalieren",
+    "Resize window to a fraction of the screen": "Fenster auf einen Bruchteil des Bildschirms skalieren",
+    "Move window to picture-in-picture": "Fenster als Bild-in-Bild verschieben",
+    "Run": "Ausführen",
+    "Run a command": "Befehl ausführen",
+    "Caelestia shortcut": "Caelestia-Kürzel",
+    "Lua function": "Lua-Funktion",
+    "Restart the shell and lock the screen": "Shell neu starten und Bildschirm sperren",
+    "Picture-in-picture the active window": "Aktives Fenster als Bild-in-Bild",
+    "Reset window size and center it": "Fenstergröße zurücksetzen und zentrieren",
+    "left": "links",
+    "right": "rechts",
+    "up": "oben",
+    "down": "unten",
+    "next workspace": "nächster Workspace",
+    "previous workspace": "vorheriger Workspace",
+    "next workspace group": "nächste Workspace-Gruppe",
+    "previous workspace group": "vorherige Workspace-Gruppe",
+    "out of its group": "aus der Gruppe",
+    "backwards": "rückwärts",
+    "maximized": "maximiert",
+    "fullscreen": "Vollbild",
+    "Toggle maximized": "Maximieren umschalten",
+    "Cycle through windows backwards": "Fenster rückwärts durchwechseln",
+    "Move window out of its group": "Fenster aus der Gruppe lösen",
+    "out of the special workspace": "aus dem Spezial-Workspace",
+    "wider": "breiter",
+    "narrower": "schmaler",
+    "taller": "höher",
+    "shorter": "niedriger",
 
     # ── Window Rules ──────────────────────────────────────────────────────
     "Window Rules": "Fenster-Regeln",
@@ -219,11 +304,70 @@ TRANSLATIONS = {
     "Removes the app and its Hyprland integration...": "Entfernt die App und ihre Hyprland-Integration...",
     "Uninstall": "Deinstallieren",
     "Manifest missing": "Manifest fehlt",
+
+    # ── Phase 1: Shell / Hyprland / Bluetooth ─────────────────────────────
+    "Appearance": "Erscheinungsbild",
+    "Typography": "Typografie",
+    "Bar": "Leiste",
+    "Hyprland: General": "Hyprland: Allgemein",
+    "Hyprland: Decoration": "Hyprland: Dekoration",
+    "Hyprland: Input": "Hyprland: Eingabe",
+    "Bluetooth": "Bluetooth",
+    "Launcher": "Launcher",
+    "Dashboard": "Dashboard",
+    "Sidebar & Utilities": "Seitenleiste & Werkzeuge",
+    "Notifications": "Benachrichtigungen",
+    "Lock Screen": "Sperrbildschirm",
+    "Power & Idle": "Energie & Leerlauf",
+    "Services": "Dienste",
+    "Hyprland: Animations": "Hyprland: Animationen",
+    "Hyprland: Gestures": "Hyprland: Gesten",
+    "Hyprland: All Options": "Hyprland: Alle Optionen",
+    "Profiles": "Profile",
+    "Diagnostics": "Diagnose",
+    "Display": "Bildschirm",
+    "Theming": "Theming",
+    "Network": "Netzwerk",
+    "Clipboard": "Zwischenablage",
+    "Capture": "Aufnehmen",
+    "Default Apps": "Standard-Apps",
+    "Login Theme": "Login-Theme",
+    "System Services": "Systemdienste",
+    "Config Editor": "Konfigurationseditor",
+    "Overrides": "Überschreibungen",
+    "Undo last change (Ctrl+Z)": "Letzte Änderung rückgängig machen (Strg+Z)",
+    "Redo change (Ctrl+Shift+Z)": "Änderung wiederherstellen (Strg+Umschalt+Z)",
 }
 
 
+# New UI strings added after the original German catalogue.
+TRANSLATIONS_DE.update({
+    "Caelestia-settings language": "Sprache von Caelestia-Settings",
+    "Language of this application (restart required)": "Sprache dieser Anwendung (Neustart erforderlich)",
+    "Restart Caelestia Settings to apply the new language.": "Caelestia Settings neu starten, um die neue Sprache anzuwenden.",
+    "Automatic (system)": "Automatisch (System)",
+    "Unknown  ({code})": "Unbekannt  ({code})",
+    "Keyboard layout: {layout}": "Tastaturlayout: {layout}",
+    "NumLock: {value}": "NumLock: {value}",
+    "Layout-specific options": "Layoutspezifische Optionen",
+    "Could not apply {name}": "{name} konnte nicht angewendet werden",
+    "{name} updated": "{name} aktualisiert",
+    "Bluetooth updated": "Bluetooth aktualisiert",
+    "A settings app for Caelestia Hyprland setups.": "Eine Einstellungs-App für Caelestia-Hyprland-Setups.",
+    "Also applies to the hardware volume keys": "Gilt auch für die Hardware-Lautstärketasten",
+    "Also applies to the hardware brightness keys": "Gilt auch für die Hardware-Helligkeitstasten",
+    "Also limits the hardware volume keys": "Begrenzt auch die Hardware-Lautstärketasten",
+    "Could not update variables.lua": "variables.lua konnte nicht aktualisiert werden",
+})
+
+
+from src.lang_es import TRANSLATIONS_ES  # noqa: E402
+
+
 def t(text: str) -> str:
-    """Returns German translation if system language is German, otherwise English."""
-    if IS_GERMAN:
-        return TRANSLATIONS.get(text, text)
+    """Return the active translation (Spanish MX, German or English)."""
+    if LANGUAGE == "es_MX":
+        return TRANSLATIONS_ES.get(text, text)
+    if LANGUAGE == "de":
+        return TRANSLATIONS_DE.get(text, text)
     return text

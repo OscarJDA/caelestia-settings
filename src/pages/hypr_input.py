@@ -1,0 +1,9 @@
+from src.hypr_settings import HyprBackend
+from src.settings_engine import SettingsPage, make_backend_error_toast
+from src.settings_schema import HYPR_INPUT_SPEC
+
+
+class HyprInputPage(SettingsPage):
+    def __init__(self, main_window, backend=None):
+        backend = backend or HyprBackend(error_sink=make_backend_error_toast(main_window))
+        super().__init__(main_window, HYPR_INPUT_SPEC, backend)

@@ -39,7 +39,7 @@ class AboutPage(Gtk.Box):
         
         info_group.add(Adw.ActionRow(title=t("Version"), subtitle=info["version"]))
         info_group.add(Adw.ActionRow(title=t("Author"), subtitle=info["author"]))
-        info_group.add(Adw.ActionRow(title=t("Description"), subtitle=info["beschreibung"]))
+        info_group.add(Adw.ActionRow(title=t("Description"), subtitle=t(info["beschreibung"])))
 
         # App Mgmt Group
         update_group = Adw.PreferencesGroup(title=t("App Management"))

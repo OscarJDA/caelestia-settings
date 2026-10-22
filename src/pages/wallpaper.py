@@ -7,8 +7,12 @@ from pathlib import Path
 from src.lang import t
 from gi.repository import Gtk, Adw, GLib, GdkPixbuf
 
-_SHELL_JSON = Path.home() / ".config" / "caelestia" / "shell.json"
-_DEFAULT_IMAGE_DIR = Path.home() / "Bilder" / "Wallpapers"
+from src.config import is_lua_mode, CAELESTIA_HYPR_USER, CAELESTIA_SHELL_JSON
+from src.safe_io import atomic_write_json, atomic_write_text, read_json
+
+_SHELL_JSON = CAELESTIA_SHELL_JSON
+_EXTRA_SETTINGS = Path.home() / ".config" / "caelestia-settings" / "wallpaper.json"
+_DEFAULT_IMAGE_DIR = Path.home() / "Pictures" / "Wallpapers"
 VIDEO_DIR = Path.home() / "Videos" / "Wallpaper"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
@@ -19,19 +23,35 @@ THUMB_CACHE   = Path.home() / ".cache" / "caelestia-settings" / "thumbs"
 _MPV_PID_FILE = Path.home() / ".cache" / "caelestia-settings" / "mpvpaper.pid"
 _EXECS_CONF   = Path.home() / ".config" / "hypr" / "hyprland" / "execs.conf"
 _MPVPAPER_MARKER = "# caelestia-settings: video-wallpaper"
+_MPVPAPER_LUA_MARKER = "-- caelestia-settings: video-wallpaper"
 
 
 def _get_image_dir() -> Path:
-    """Liest wallpaperDir aus ~/.config/caelestia/shell.json."""
+    """Liest wallpaperDir aus ~/.config/caelestia/shell.json mit Fallbacks."""
     try:
         if _SHELL_JSON.exists():
             data = json.loads(_SHELL_JSON.read_text())
             wall_dir = data.get("paths", {}).get("wallpaperDir", "")
             if wall_dir:
-                return Path(wall_dir)
+                return Path(os.path.expanduser(wall_dir))
     except Exception as e:
         print(f"shell.json lesen fehler: {e}")
-    return _DEFAULT_IMAGE_DIR
+
+    xdg_pictures = os.environ.get("XDG_PICTURES_DIR")
+    if xdg_pictures:
+        p = Path(os.path.expanduser(xdg_pictures)) / "Wallpapers"
+        if p.exists():
+            return p
+
+    default_en = Path.home() / "Pictures" / "Wallpapers"
+    if default_en.exists():
+        return default_en
+
+    default_de = Path.home() / "Bilder" / "Wallpapers"
+    if default_de.exists():
+        return default_de
+
+    return default_en
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -43,15 +63,24 @@ def _ensure_dirs():
 
 
 def _write_mpvpaper_autostart(video_path: Path | None):
-    _EXECS_CONF.parent.mkdir(parents=True, exist_ok=True)
-    lines = _EXECS_CONF.read_text().splitlines() if _EXECS_CONF.exists() else []
-    lines = [line for line in lines if _MPVPAPER_MARKER not in line]
-    if video_path is not None:
-        lines.append(
-            f"exec-once = mpvpaper '*' {shlex.quote(str(video_path))}"
-            f" -o 'loop --no-audio --panscan=1.0'  {_MPVPAPER_MARKER}"
-        )
-    _EXECS_CONF.write_text("\n".join(lines) + "\n")
+    if is_lua_mode():
+        CAELESTIA_HYPR_USER.parent.mkdir(parents=True, exist_ok=True)
+        lines = CAELESTIA_HYPR_USER.read_text().splitlines() if CAELESTIA_HYPR_USER.exists() else []
+        lines = [line for line in lines if _MPVPAPER_LUA_MARKER not in line and "mpvpaper" not in line]
+        if video_path is not None:
+            cmd = f"mpvpaper '*' {shlex.quote(str(video_path))} -o 'loop --no-audio --panscan=1.0'"
+            lines.append(f'hl.exec_cmd({json.dumps(cmd)})  {_MPVPAPER_LUA_MARKER}')
+        atomic_write_text(CAELESTIA_HYPR_USER, "\n".join(lines) + "\n")
+    else:
+        _EXECS_CONF.parent.mkdir(parents=True, exist_ok=True)
+        lines = _EXECS_CONF.read_text().splitlines() if _EXECS_CONF.exists() else []
+        lines = [line for line in lines if _MPVPAPER_MARKER not in line]
+        if video_path is not None:
+            lines.append(
+                f"exec-once = mpvpaper '*' {shlex.quote(str(video_path))}"
+                f" -o 'loop --no-audio --panscan=1.0'  {_MPVPAPER_MARKER}"
+            )
+        atomic_write_text(_EXECS_CONF, "\n".join(lines) + "\n")
 
 
 def get_current_wallpaper() -> str:
@@ -118,26 +147,23 @@ _SHELL_CONFIG = Path.home() / ".config" / "caelestia" / "shell.json"
 
 def _read_shell_json() -> dict:
     try:
-        if _SHELL_CONFIG.exists():
-            return json.loads(_SHELL_CONFIG.read_text())
+        if CAELESTIA_SHELL_JSON.exists():
+            return json.loads(CAELESTIA_SHELL_JSON.read_text())
     except Exception as e:
         print(f"shell.json lesen: {e}")
     return {}
 
 def _write_shell_json(data: dict):
     try:
-        _SHELL_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        _SHELL_CONFIG.write_text(json.dumps(data, indent=4))
-        # Caelestia neu laden damit Änderungen greifen
-        subprocess.run(["caelestia", "shell", "reload"], capture_output=True, timeout=3)
+        atomic_write_json(CAELESTIA_SHELL_JSON, data)
     except Exception as e:
         print(f"shell.json schreiben: {e}")
 
 def _get_clock_settings() -> dict:
     data = _read_shell_json()
     return data.get("background", {}).get("desktopClock", {
-        "enabled": True,
-        "position": "top-right",
+        "enabled": False,
+        "position": "bottom-right",
         "scale": 1.0,
         "invertColors": False,
     })
@@ -149,10 +175,15 @@ def _save_clock_settings(settings: dict):
 
 
 CLOCK_POSITIONS = [
-    ("top-right",    t("Top right")),
-    ("top-left",     t("Top left")),
-    ("bottom-right", t("Bottom right")),
-    ("bottom-left",  t("Bottom left")),
+    ("top-left",      t("Top left")),
+    ("top-center",    t("Top center")),
+    ("top-right",     t("Top right")),
+    ("middle-left",   t("Middle left")),
+    ("middle-center", t("Middle center")),
+    ("middle-right",  t("Middle right")),
+    ("bottom-left",   t("Bottom left")),
+    ("bottom-center", t("Bottom center")),
+    ("bottom-right",  t("Bottom right")),
 ]
 
 
@@ -289,7 +320,7 @@ class MediaCard(Gtk.Box):
             self.append(self.image)
 
         if is_video:
-            badge = Gtk.Label(label="▶ Video")
+            badge = Gtk.Label(label=t("▶ Video"))
             badge.add_css_class("caption")
             badge.add_css_class("accent")
             self.append(badge)
@@ -318,6 +349,9 @@ class WallpaperPage(Gtk.Box):
         self._current     = get_current_wallpaper()
         self._scheme_mode = _get_current_scheme_mode()
         self._mpv_proc: subprocess.Popen | None = None
+        self._extra = read_json(_EXTRA_SETTINGS, {})
+        self._favorites = {str(path) for path in self._extra.get("favorites", [])}
+        self._slideshow_source = 0
 
         # ── Toolbar ──────────────────────────────────────────────────────
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -343,9 +377,20 @@ class WallpaperPage(Gtk.Box):
         bar.append(tab_box)
 
         self._random_btn = Gtk.Button(label=t("🔀 Random"))
-        self._random_btn.set_tooltip_text("Zufälliges Bild aus ~/Bilder/Wallpapers/")
+        self._random_btn.set_tooltip_text(t("Random image from the wallpaper folder"))
         self._random_btn.connect("clicked", self._on_random)
         bar.append(self._random_btn)
+
+        self._fav_btn = Gtk.ToggleButton()
+        self._fav_btn.set_icon_name("non-starred-symbolic")
+        self._fav_btn.set_tooltip_text(t("Favorite current wallpaper"))
+        self._fav_btn.connect("clicked", self._on_favorite_toggled)
+        bar.append(self._fav_btn)
+
+        self._fav_filter = Gtk.ToggleButton(label=t("Favorites"))
+        self._fav_filter.set_tooltip_text(t("Show favorites only"))
+        self._fav_filter.connect("toggled", lambda _b: self._reload())
+        bar.append(self._fav_filter)
 
         # Spacer
         spacer = Gtk.Box()
@@ -385,14 +430,14 @@ class WallpaperPage(Gtk.Box):
         clock_expander = Adw.ExpanderRow()
         clock_expander.set_title(t("Desktop clock"))
         clock_expander.set_subtitle(t("Position, size and visibility"))
-        clock_expander.set_margin_start(12)
-        clock_expander.set_margin_end(12)
-        clock_expander.set_margin_bottom(6)
 
         # Wrapper da ExpanderRow kein direktes Widget-Child akzeptiert
         clock_box = Gtk.ListBox()
         clock_box.set_selection_mode(Gtk.SelectionMode.NONE)
         clock_box.add_css_class("boxed-list")
+        clock_box.set_margin_start(12)
+        clock_box.set_margin_end(12)
+        clock_box.set_margin_bottom(6)
 
         clk = _get_clock_settings()
 
@@ -432,7 +477,38 @@ class WallpaperPage(Gtk.Box):
         self._clock_invert.connect("notify::active", self._on_clock_changed)
         clock_expander.add_row(self._clock_invert)
 
-        self.append(clock_expander)
+        clock_box.append(clock_expander)
+        self.append(clock_box)
+
+        # ── Wallpaper rotation ────────────────────────────────────────────
+        slideshow = Adw.PreferencesGroup(title=t("Wallpaper rotation"))
+        slideshow.set_margin_start(12)
+        slideshow.set_margin_end(12)
+        slideshow.set_margin_bottom(6)
+        self._slideshow_enabled = Adw.SwitchRow(
+            title=t("Rotate wallpaper"),
+            subtitle=t("Switch to a random wallpaper on a timer"),
+        )
+        self._slideshow_enabled.set_active(bool(self._extra.get("slideshowEnabled", False)))
+        self._slideshow_enabled.connect("notify::active", self._on_slideshow_changed)
+        slideshow.add(self._slideshow_enabled)
+
+        self._slideshow_interval = Adw.SpinRow.new_with_range(1, 1440, 1)
+        self._slideshow_interval.set_title(t("Interval"))
+        self._slideshow_interval.set_subtitle(t("Minutes"))
+        self._slideshow_interval.set_value(float(self._extra.get("slideshowMinutes", 30)))
+        self._slideshow_interval.connect("notify::value", self._on_slideshow_changed)
+        slideshow.add(self._slideshow_interval)
+
+        next_row = Adw.ActionRow(title=t("Next wallpaper now"))
+        next_btn = Gtk.Button(label=t("Next"))
+        next_btn.set_valign(Gtk.Align.CENTER)
+        next_btn.connect("clicked", lambda _b: self._slideshow_tick())
+        next_row.add_suffix(next_btn)
+        slideshow.add(next_row)
+        self.append(slideshow)
+        self._reschedule_slideshow()
+        self._refresh_favorite_button()
 
         # ── Banner ───────────────────────────────────────────────────────
         self.banner = Adw.Banner()
@@ -483,12 +559,16 @@ class WallpaperPage(Gtk.Box):
     # ── Laden ─────────────────────────────────────────────────────────────
 
     def _load_images(self):
-        self._img_grid.load(_scan(_get_image_dir(), IMAGE_EXTENSIONS),
-                            self._current, _make_image_thumb, is_video=False)
+        files = _scan(_get_image_dir(), IMAGE_EXTENSIONS)
+        if self._fav_filter.get_active():
+            files = [path for path in files if str(path) in self._favorites]
+        self._img_grid.load(files, self._current, _make_image_thumb, is_video=False)
 
     def _load_videos(self):
-        self._vid_grid.load(_scan(VIDEO_DIR, VIDEO_EXTENSIONS),
-                            self._current, _make_video_thumb, is_video=True)
+        files = _scan(VIDEO_DIR, VIDEO_EXTENSIONS)
+        if self._fav_filter.get_active():
+            files = [path for path in files if str(path) in self._favorites]
+        self._vid_grid.load(files, self._current, _make_video_thumb, is_video=True)
 
     # ── Auswahl ───────────────────────────────────────────────────────────
 
@@ -499,10 +579,11 @@ class WallpaperPage(Gtk.Box):
             _write_mpvpaper_autostart(None)
             self._current = str(path)
             self._img_grid.mark_current(self._current)
-            self._show_banner(f"Wallpaper: {path.name}")
-            self.main_window.add_toast(Adw.Toast.new(f"Wallpaper: {path.name}"))
+            self._refresh_favorite_button()
+            self._show_banner(t("Wallpaper: {name}").format(name=path.name))
+            self.main_window.add_toast(Adw.Toast.new(t("Wallpaper: {name}").format(name=path.name)))
         except Exception as e:
-            self.main_window.add_toast(Adw.Toast.new(f"Fehler: {e}"))
+            self.main_window.add_toast(Adw.Toast.new(t("Error: {error}").format(error=e)))
 
     def _on_video_selected(self, path: Path):
         self._stop_mpv()
@@ -519,14 +600,15 @@ class WallpaperPage(Gtk.Box):
             _write_mpvpaper_autostart(path)
             self._current = str(path)
             self._vid_grid.mark_current(self._current)
-            self._show_banner(f"Video-Wallpaper: {path.name}")
-            self.main_window.add_toast(Adw.Toast.new(f"Video: {path.name}"))
+            self._refresh_favorite_button()
+            self._show_banner(t("Video wallpaper: {name}").format(name=path.name))
+            self.main_window.add_toast(Adw.Toast.new(t("Video: {name}").format(name=path.name)))
         except FileNotFoundError:
             self.main_window.add_toast(
                 Adw.Toast.new(t("mpvpaper not found — yay -S mpvpaper"))
             )
         except Exception as e:
-            self.main_window.add_toast(Adw.Toast.new(f"Fehler: {e}"))
+            self.main_window.add_toast(Adw.Toast.new(t("Error: {error}").format(error=e)))
 
     def _stop_mpv(self):
         if self._mpv_proc is not None:
@@ -548,6 +630,53 @@ class WallpaperPage(Gtk.Box):
 
     # ── Toolbar-Buttons ───────────────────────────────────────────────────
 
+    def _save_extra(self) -> None:
+        self._extra["favorites"] = sorted(self._favorites)
+        self._extra["slideshowEnabled"] = self._slideshow_enabled.get_active()
+        self._extra["slideshowMinutes"] = int(self._slideshow_interval.get_value())
+        atomic_write_json(_EXTRA_SETTINGS, self._extra)
+
+    def _refresh_favorite_button(self) -> None:
+        favorite = bool(self._current) and self._current in self._favorites
+        self._fav_btn.set_active(favorite)
+        self._fav_btn.set_icon_name("starred-symbolic" if favorite else "non-starred-symbolic")
+
+    def _on_favorite_toggled(self, button) -> None:
+        if not self._current:
+            return
+        if button.get_active():
+            self._favorites.add(self._current)
+        else:
+            self._favorites.discard(self._current)
+        self._save_extra()
+        self._refresh_favorite_button()
+        if self._fav_filter.get_active():
+            self._reload()
+
+    def _reschedule_slideshow(self) -> None:
+        if self._slideshow_source:
+            GLib.source_remove(self._slideshow_source)
+            self._slideshow_source = 0
+        if self._slideshow_enabled.get_active():
+            minutes = max(1, int(self._slideshow_interval.get_value()))
+            self._slideshow_source = GLib.timeout_add_seconds(
+                minutes * 60, self._slideshow_tick
+            )
+
+    def _on_slideshow_changed(self, *_args) -> None:
+        self._save_extra()
+        self._reschedule_slideshow()
+
+    def _slideshow_tick(self) -> bool:
+        self._stop_mpv()
+        try:
+            subprocess.Popen(["caelestia", "wallpaper", "-r", str(_get_image_dir())])
+            _write_mpvpaper_autostart(None)
+            self.main_window.add_toast(Adw.Toast.new(t("Random wallpaper set")))
+        except Exception as exc:
+            self.main_window.add_toast(Adw.Toast.new(t("Error: {error}").format(error=exc)))
+        return True
+
     def _on_random(self, _):
         self._stop_mpv()
         try:
@@ -556,7 +685,7 @@ class WallpaperPage(Gtk.Box):
             self._show_banner(t("Random wallpaper set"))
             self.main_window.add_toast(Adw.Toast.new(t("Random wallpaper set")))
         except Exception as e:
-            self.main_window.add_toast(Adw.Toast.new(f"Fehler: {e}"))
+            self.main_window.add_toast(Adw.Toast.new(t("Error: {error}").format(error=e)))
 
     def _on_mode_toggled(self, btn):
         mode = "light" if btn.get_active() else "dark"
@@ -567,10 +696,10 @@ class WallpaperPage(Gtk.Box):
         )
         try:
             subprocess.Popen(["caelestia", "scheme", "set", "--notify", "-m", mode])
-            self._show_banner(f"Farbschema: {mode.capitalize()}")
-            self.main_window.add_toast(Adw.Toast.new(f"Farbschema: {mode.capitalize()}"))
+            self._show_banner(t("Colour scheme: {mode}").format(mode=t(mode.capitalize())))
+            self.main_window.add_toast(Adw.Toast.new(t("Colour scheme: {mode}").format(mode=t(mode.capitalize()))))
         except Exception as e:
-            self.main_window.add_toast(Adw.Toast.new(f"Fehler: {e}"))
+            self.main_window.add_toast(Adw.Toast.new(t("Error: {error}").format(error=e)))
 
     def _on_clock_changed(self, *_):
         settings = _get_clock_settings()

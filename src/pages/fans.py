@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from gi.repository import Gtk, Adw, GLib
 from src.lang import t
+from src.safe_io import atomic_write_json, read_json
 
 try:
     import psutil as _psutil
@@ -27,6 +28,7 @@ import caelestia_core
 
 _HWMON = Path("/sys/class/hwmon")
 _CPU_TEMP_KEYS = ["k10temp", "coretemp", "cpu_thermal", "nct6798"]
+_FANS_SETTINGS = Path.home() / ".config" / "caelestia-settings" / "fans.json"
 
 
 # ── Hardware readers ──────────────────────────────────────────────────────────
@@ -141,7 +143,12 @@ class FansPage(Gtk.Box):
         self._polling  = True
         self._auto_mode = False
         self._last_gpu_speed: int | None = None
+        self._last_gpu_temp: int | None = None
         self._fan_rows: dict = {}
+        self._settings = read_json(_FANS_SETTINGS, {})
+        self._curve = self._settings.get("curve", {
+            "t1": 50, "s1": 30, "t2": 72, "s2": 60, "t3": 80, "s3": 90, "hysteresis": 3,
+        })
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -173,7 +180,7 @@ class FansPage(Gtk.Box):
 
         if not _HAS_PSUTIL:
             self._stats_group.add(Adw.ActionRow(
-                title="python-psutil not installed",
+                title=t("python-psutil not installed"),
                 subtitle="sudo pacman -S python-psutil"
             ))
 
@@ -208,9 +215,53 @@ class FansPage(Gtk.Box):
                 pbox.append(btn)
             preset_row.add_suffix(pbox)
             gpu_group.add(preset_row)
+
+            curve_group = Adw.PreferencesGroup(
+                title=t("Custom auto curve"),
+                description=t("GPU temperature thresholds and fan speeds"),
+            )
+            box.append(curve_group)
+            self._curve_rows = {}
+            for key, label, is_temp in (
+                ("t1", "Threshold 1", True),
+                ("s1", "Speed 1", False),
+                ("t2", "Threshold 2", True),
+                ("s2", "Speed 2", False),
+                ("t3", "Threshold 3", True),
+                ("s3", "Speed 3", False),
+            ):
+                spin = Adw.SpinRow.new_with_range(0, 100, 1)
+                spin.set_title(t(label))
+                spin.set_value(float(self._curve.get(key, 0)))
+                spin.connect("notify::value", self._on_curve_changed)
+                curve_group.add(spin)
+                self._curve_rows[key] = spin
+            self._hyst_row = Adw.SpinRow.new_with_range(0, 20, 1)
+            self._hyst_row.set_title(t("Hysteresis"))
+            self._hyst_row.set_subtitle(t("Ignore small temperature changes"))
+            self._hyst_row.set_value(float(self._curve.get("hysteresis", 3)))
+            self._hyst_row.connect("notify::value", self._on_curve_changed)
+            curve_group.add(self._hyst_row)
+
+            profile_group = Adw.PreferencesGroup(title=t("Profiles"))
+            profile_row = Adw.ActionRow(title=t("Fan profile"))
+            save_btn = Gtk.Button(label=t("Save"))
+            save_btn.set_valign(Gtk.Align.CENTER)
+            save_btn.connect("clicked", lambda _b: self._save_profile())
+            apply_btn = Gtk.Button(label=t("Apply"))
+            apply_btn.set_valign(Gtk.Align.CENTER)
+            apply_btn.add_css_class("suggested-action")
+            apply_btn.connect("clicked", lambda _b: self._apply_profile())
+            profile_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            profile_box.set_valign(Gtk.Align.CENTER)
+            profile_box.append(save_btn)
+            profile_box.append(apply_btn)
+            profile_row.add_suffix(profile_box)
+            profile_group.add(profile_row)
+            box.append(profile_group)
         else:
             gpu_group.add(Adw.ActionRow(
-                title="nvidia-ml-py not installed",
+                title=t("nvidia-ml-py not installed"),
                 subtitle="yay -S python-nvidia-ml-py"
             ))
 
@@ -263,11 +314,24 @@ class FansPage(Gtk.Box):
 
             if self._auto_mode:
                 temp = gpu["temp"]
-                speed = 30 if temp < 50 else (60 if temp < 72 else 90)
-                if speed != self._last_gpu_speed:
-                    self._last_gpu_speed = speed
-                    self._gpu_slider.set_value(speed)
-                    threading.Thread(target=_set_gpu_fan, args=(speed,), daemon=True).start()
+                t1, t2 = int(self._curve.get("t1", 50)), int(self._curve.get("t2", 72))
+                if temp < t1:
+                    speed = int(self._curve.get("s1", 30))
+                elif temp < t2:
+                    speed = int(self._curve.get("s2", 60))
+                else:
+                    speed = int(self._curve.get("s3", 90))
+                hysteresis = int(self._curve.get("hysteresis", 3))
+                if (
+                    self._last_gpu_temp is None
+                    or abs(temp - self._last_gpu_temp) >= hysteresis
+                    or self._last_gpu_speed is None
+                ):
+                    self._last_gpu_temp = temp
+                    if speed != self._last_gpu_speed:
+                        self._last_gpu_speed = speed
+                        self._gpu_slider.set_value(speed)
+                        threading.Thread(target=_set_gpu_fan, args=(speed,), daemon=True).start()
         else:
             self._gpu_stat_val.set_label("--")
 
@@ -291,6 +355,42 @@ class FansPage(Gtk.Box):
         self._auto_mode = sw.get_active()
         self._gpu_slider.set_sensitive(not self._auto_mode)
         self._last_gpu_speed = None
+        self._last_gpu_temp = None
+
+    def _on_curve_changed(self, *_args) -> None:
+        for key, row in getattr(self, "_curve_rows", {}).items():
+            self._curve[key] = int(row.get_value())
+        self._curve["hysteresis"] = int(self._hyst_row.get_value())
+        self._settings["curve"] = self._curve
+        atomic_write_json(_FANS_SETTINGS, self._settings)
+        self._last_gpu_speed = None
+        self._last_gpu_temp = None
+
+    def _save_profile(self) -> None:
+        profile = {
+            "auto": self._auto_mode,
+            "gpu_speed": int(self._gpu_slider.get_value()) if _HAS_NVML else None,
+            "sys": {ch["label"]: int(sl.get_value()) for sl, ch in getattr(self, "_pwm_sliders", [])},
+        }
+        self._settings["profile"] = profile
+        atomic_write_json(_FANS_SETTINGS, self._settings)
+        self.main_window.add_toast(Adw.Toast.new(t("Fan profile saved.")))
+
+    def _apply_profile(self) -> None:
+        profile = self._settings.get("profile")
+        if not profile:
+            self.main_window.add_toast(Adw.Toast.new(t("No saved fan profile.")))
+            return
+        if _HAS_NVML and "auto" in profile and hasattr(self, "_auto_row"):
+            self._auto_row.set_active(bool(profile.get("auto")))
+            self._gpu_slider.set_value(float(profile.get("gpu_speed", 50)))
+        for sl, ch in getattr(self, "_pwm_sliders", []):
+            value = profile.get("sys", {}).get(ch["label"])
+            if value is not None:
+                sl.set_value(float(value))
+        if getattr(self, "_pwm_sliders", []):
+            self._on_apply_sys(None)
+        self.main_window.add_toast(Adw.Toast.new(t("Fan profile applied.")))
 
     def _on_gpu_slider(self, slider):
         if self._auto_mode:
@@ -330,7 +430,7 @@ class FansPage(Gtk.Box):
             except PermissionError:
                 errors.append(ch["pwm"])
             except Exception as e:
-                self.main_window.add_toast(Adw.Toast.new(f"Error: {e}"))
+                self.main_window.add_toast(Adw.Toast.new(t("Error: {error}").format(error=e)))
                 return
 
         if not errors:
@@ -427,9 +527,9 @@ class FansPage(Gtk.Box):
                               Adw.Toast.new(t("Fan settings applied.")))
             else:
                 GLib.idle_add(self.main_window.add_toast,
-                              Adw.Toast.new(f"Error (exit {proc.returncode})"))
+                              Adw.Toast.new(t("Error (exit {code})").format(code=proc.returncode)))
         except Exception as e:
-            GLib.idle_add(self.main_window.add_toast, Adw.Toast.new(f"Error: {e}"))
+            GLib.idle_add(self.main_window.add_toast, Adw.Toast.new(t("Error: {error}").format(error=e)))
         finally:
             try:
                 os.unlink(path)

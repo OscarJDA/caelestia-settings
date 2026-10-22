@@ -1,6 +1,13 @@
 from pathlib import Path
+import shutil
+import time
 
 from gi.repository import Adw, GdkPixbuf, GLib, Gtk
+
+try:
+    import psutil as _psutil
+except ImportError:
+    _psutil = None
 
 from src.config import parse_monitors_conf
 from src.lang import t
@@ -18,10 +25,18 @@ _QUICK_ACTIONS = [
      "Wallpaper", "Change wallpaper and color scheme"),
     ("mon", "video-display-symbolic",
      "Monitor", "Arrange displays and resolutions"),
+    ("appearance", "applications-graphics-symbolic",
+     "Appearance", "Transparency, scaling and fonts"),
+    ("bar", "preferences-desktop-panel-symbolic",
+     "Bar", "Configure the shell bar"),
     ("wifi", "network-wireless-symbolic",
      "WLAN", "Scan and connect to networks"),
+    ("bluetooth", "bluetooth-symbolic",
+     "Bluetooth", "Pair and connect devices"),
     ("keys", "preferences-desktop-keyboard-symbolic",
      "Keybinds", "View and edit shortcuts"),
+    ("diag", "dialog-warning-symbolic",
+     "Diagnostics", "Validate your configuration"),
     ("upd", "software-update-available-symbolic",
      "Updates", "Check for system updates"),
 ]
@@ -105,7 +120,7 @@ class HomePage(Gtk.Box):
         self._monitor_row = Adw.ActionRow(title=t("Monitors"))
         group.add(self._monitor_row)
 
-        self._wifi_row = Adw.ActionRow(title="WLAN")
+        self._wifi_row = Adw.ActionRow(title=t("WLAN"))
         group.add(self._wifi_row)
 
         self._layout_row = Adw.ActionRow(title=t("Keyboard Layout"))
@@ -116,6 +131,15 @@ class HomePage(Gtk.Box):
 
         self._gpu_row = Adw.ActionRow(title=t("GPU Temperature"))
         group.add(self._gpu_row)
+
+        self._uptime_row = Adw.ActionRow(title=t("Uptime"))
+        group.add(self._uptime_row)
+
+        self._memory_row = Adw.ActionRow(title=t("Memory"))
+        group.add(self._memory_row)
+
+        self._storage_row = Adw.ActionRow(title=t("Storage"))
+        group.add(self._storage_row)
 
         return group
 
@@ -143,6 +167,38 @@ class HomePage(Gtk.Box):
         self._refresh_wifi()
         self._refresh_layout()
         self._refresh_temperatures()
+        self._refresh_system()
+
+    def _refresh_system(self):
+        try:
+            uptime = int(time.time() - _psutil.boot_time()) if _psutil else 0
+            days, rest = divmod(uptime, 86400)
+            hours, rest = divmod(rest, 3600)
+            minutes = rest // 60
+            self._uptime_row.set_subtitle(
+                f"{days}d {hours}h {minutes}m" if days else f"{hours}h {minutes}m"
+            )
+        except Exception:
+            self._uptime_row.set_subtitle(t("Not available"))
+
+        if not _psutil:
+            self._memory_row.set_subtitle(t("Not available"))
+            self._storage_row.set_subtitle(t("Not available"))
+            return
+        try:
+            memory = _psutil.virtual_memory()
+            used = memory.used / (1024 ** 3)
+            total = memory.total / (1024 ** 3)
+            self._memory_row.set_subtitle(f"{used:.1f} / {total:.1f} GiB ({memory.percent:.0f}%)")
+        except Exception:
+            self._memory_row.set_subtitle(t("Not available"))
+        try:
+            usage = shutil.disk_usage(Path.home())
+            used = usage.used / (1024 ** 3)
+            total = usage.total / (1024 ** 3)
+            self._storage_row.set_subtitle(f"{used:.0f} / {total:.0f} GiB")
+        except Exception:
+            self._storage_row.set_subtitle(t("Not available"))
 
     def _refresh_wallpaper(self):
         current = get_current_wallpaper()

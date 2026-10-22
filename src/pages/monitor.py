@@ -19,6 +19,13 @@ BITDEPTH_OPTIONS = [
     ("10", t("10 bit (HDR)")),
 ]
 
+VRR_OPTIONS = [
+    ("0", t("Off")),
+    ("1", t("Always on")),
+    ("2", t("Fullscreen only")),
+    ("3", t("Fullscreen + video")),
+]
+
 # Farben für Monitor-Rechtecke (Index → RGBA)
 MONITOR_COLORS = [
     (0.27, 0.52, 0.93, 1.0),   # Blau
@@ -35,7 +42,7 @@ CANVAS_H = 220   # Höhe der Vorschau-Canvas in Pixeln
 
 def _get_live_monitors() -> list[dict]:
     """Liefert die aktuellen Monitor-Daten von hyprctl, angereichert mit
-    Extras aus monitors.conf (bitdepth)."""
+    Extras aus monitors.conf / monitors.lua (bitdepth)."""
     try:
         res = subprocess.run(
             ["hyprctl", "monitors", "all", "-j"],
@@ -46,10 +53,13 @@ def _get_live_monitors() -> list[dict]:
         print(f"hyprctl fehler: {e}")
         return []
 
-    # Extras aus monitors.conf lesen (bitdepth)
+    # Extras aus config lesen (bitdepth, vrr, mirror)
     extras = _parse_conf_extras()
     for m in monitors:
         name = m.get("name", "")
+        mirror_of = m.get("mirrorOf")
+        if mirror_of and mirror_of != "none":
+            m["mirror"] = mirror_of
         if name in extras:
             m.update(extras[name])
     return monitors
@@ -57,11 +67,39 @@ def _get_live_monitors() -> list[dict]:
 
 def _parse_conf_extras() -> dict:
     """
-    Liest monitors.conf und extrahiert pro Monitor-Name:
-    { "DP-1": {"bitdepth": "10"}, "DP-2": {"bitdepth": ""} }
+    Liest monitors.lua oder monitors.conf und extrahiert pro Monitor-Name:
+    { "DP-1": {"bitdepth": "10", "vrr": "2", "mirror": "HDMI-A-1"} }
     """
-    from src.config import HYPR_MONITORS_CONF
+    import re
+    from src.config import is_lua_mode, CAELESTIA_MONITORS_LUA, HYPR_MONITORS_CONF
+
     result = {}
+
+    # 1. Lua mode
+    if is_lua_mode() and CAELESTIA_MONITORS_LUA.exists():
+        try:
+            text = CAELESTIA_MONITORS_LUA.read_text()
+            for m in re.finditer(r"hl\.monitor\s*\(\s*\{([^}]+)\}\s*\)", text):
+                body = m.group(1)
+                name_m = re.search(r'output\s*=\s*["\']([^"\']+)["\']', body)
+                if not name_m:
+                    continue
+                extras = {}
+                bd_m = re.search(r'bitdepth\s*=\s*([0-9]+)', body)
+                vrr_m = re.search(r'vrr\s*=\s*([0-9]+)', body)
+                mirror_m = re.search(r'mirror\s*=\s*["\']([^"\']+)["\']', body)
+                if bd_m:
+                    extras["bitdepth"] = bd_m.group(1)
+                if vrr_m:
+                    extras["vrr"] = vrr_m.group(1)
+                if mirror_m:
+                    extras["mirror"] = mirror_m.group(1)
+                result[name_m.group(1)] = extras
+        except Exception as e:
+            print(f"Fehler beim Lesen von monitors.lua extras: {e}")
+        return result
+
+    # 2. Conf mode
     if not HYPR_MONITORS_CONF.exists():
         return result
     try:
@@ -70,24 +108,44 @@ def _parse_conf_extras() -> dict:
             if not line.startswith("monitor"):
                 continue
             rest = line.split("=", 1)[1]
-            # Komma-getrennte Tokens, Extras nach Index 3
             tokens = [t.strip() for t in rest.split(",")]
             if len(tokens) < 1:
                 continue
             name = tokens[0]
-            extras = {"bitdepth": ""}
-            # Suche nach "bitdepth" Token
+            extras = {}
             for i, tok in enumerate(tokens):
-                if tok.lower() == "bitdepth" and i + 1 < len(tokens):
-                    extras["bitdepth"] = tokens[i + 1].strip()
+                key = tok.lower()
+                if key in ("bitdepth", "vrr", "mirror") and i + 1 < len(tokens):
+                    extras[key] = tokens[i + 1].strip()
             result[name] = extras
     except Exception as e:
         print(f"Fehler beim Lesen von monitors.conf extras: {e}")
     return result
 
 
-def _apply_to_hyprland(monitors: list[dict]):
+def _apply_to_hyprland(monitors: list):
     """Schickt alle Monitor-Konfigurationen live an Hyprland."""
+    from src.config import is_lua_mode, hyprctl_eval
+
+    if is_lua_mode():
+        for m in monitors:
+            if m.disabled:
+                hyprctl_eval(f'hl.monitor({{ output = "{m.name}", disabled = true }})')
+            else:
+                res_hz = f"{m.resolution}@{m.hz}" if m.hz else m.resolution
+                pos = f"{int(m.x)}x{int(m.y)}"
+                parts = [f'output = "{m.name}"', f'mode = "{res_hz}"', f'position = "{pos}"', f'scale = {m.scale}']
+                if m.bitdepth:
+                    parts.append(f'bitdepth = {m.bitdepth}')
+                if m.transform and m.transform != "0":
+                    parts.append(f'transform = {m.transform}')
+                if getattr(m, "vrr", "0"):
+                    parts.append(f'vrr = {m.vrr}')
+                if getattr(m, "mirror", ""):
+                    parts.append(f'mirror = "{m.mirror}"')
+                hyprctl_eval(f"hl.monitor({{ {', '.join(parts)} }})")
+        return
+
     for m in monitors:
         keyword = _build_monitor_keyword(m)
         try:
@@ -100,8 +158,53 @@ def _apply_to_hyprland(monitors: list[dict]):
 
 
 def _save_monitors_conf(monitors: list):
-    """Schreibt monitors.conf — behält workspace-Zeilen bei."""
-    from src.config import HYPR_MONITORS_CONF
+    """Schreibt monitors.lua (Lua-Modus) oder monitors.conf — behält workspace-Zeilen bei."""
+    from src.config import (
+        is_lua_mode,
+        ensure_hypr_user_lua,
+        hyprctl_reload,
+        CAELESTIA_MONITORS_LUA,
+        HYPR_MONITORS_CONF,
+    )
+
+    if is_lua_mode():
+        # Bestehende Workspace-Regeln aus monitors.lua behalten
+        ws_lines = []
+        if CAELESTIA_MONITORS_LUA.exists():
+            for line in CAELESTIA_MONITORS_LUA.read_text().splitlines():
+                s = line.strip()
+                if "hl.workspace_rule" in s:
+                    ws_lines.append(line)
+
+        lines = ["-- Auto-generated by Caelestia Settings – Monitore", ""]
+        for m in monitors:
+            if m.disabled:
+                lines.append(f'hl.monitor({{ output = "{m.name}", disabled = true }})')
+            else:
+                res_hz = f"{m.resolution}@{m.hz}" if m.hz else m.resolution
+                pos = f"{int(m.x)}x{int(m.y)}"
+                parts = [f'output = "{m.name}"', f'mode = "{res_hz}"', f'position = "{pos}"', f'scale = {m.scale}']
+                if m.bitdepth:
+                    parts.append(f'bitdepth = {m.bitdepth}')
+                if m.transform and m.transform != "0":
+                    parts.append(f'transform = {m.transform}')
+                if getattr(m, "vrr", "0"):
+                    parts.append(f'vrr = {m.vrr}')
+                if getattr(m, "mirror", ""):
+                    parts.append(f'mirror = "{m.mirror}"')
+                lines.append(f"hl.monitor({{ {', '.join(parts)} }})")
+
+        if ws_lines:
+            lines.append("")
+            lines.append("-- Workspaces")
+            lines.extend(ws_lines)
+
+        CAELESTIA_MONITORS_LUA.parent.mkdir(parents=True, exist_ok=True)
+        CAELESTIA_MONITORS_LUA.write_text("\n".join(lines) + "\n")
+        ensure_hypr_user_lua()
+        hyprctl_reload()
+        return
+
     HYPR_MONITORS_CONF.parent.mkdir(parents=True, exist_ok=True)
 
     # Bestehende workspace-Zeilen lesen
@@ -123,18 +226,30 @@ def _save_monitors_conf(monitors: list):
     HYPR_MONITORS_CONF.write_text("\n".join(lines) + "\n")
 
 
-# ── execs.conf Helpers ───────────────────────────────────────────────────────
+# ── Primary Monitor Helpers ──────────────────────────────────────────────────
 
 def _get_primary_monitor() -> str:
-    """Liest den aktuellen Hauptmonitor aus execs.conf."""
-    from pathlib import Path
-    execs = Path.home() / ".config/hypr/hyprland/execs.conf"
-    if not execs.exists():
+    """Liest den aktuellen Hauptmonitor aus hypr-user.lua oder execs.conf."""
+    from src.config import is_lua_mode, CAELESTIA_HYPR_USER, HYPR_EXECS_CONF
+
+    if is_lua_mode() and CAELESTIA_HYPR_USER.exists():
+        for line in CAELESTIA_HYPR_USER.read_text().splitlines():
+            line = line.strip()
+            if "xrandr" in line and "--primary" in line:
+                parts = line.split()
+                try:
+                    idx = parts.index("--output")
+                    name = parts[idx + 1].strip("'\"")
+                    return name
+                except (ValueError, IndexError):
+                    pass
         return ""
-    for line in execs.read_text().splitlines():
+
+    if not HYPR_EXECS_CONF.exists():
+        return ""
+    for line in HYPR_EXECS_CONF.read_text().splitlines():
         line = line.strip()
         if "xrandr --output" in line and "--primary" in line:
-            # exec-once = xrandr --output DP-1 --primary
             parts = line.split()
             try:
                 idx = parts.index("--output")
@@ -145,33 +260,45 @@ def _get_primary_monitor() -> str:
 
 
 def _set_primary_monitor(name: str):
-    """Schreibt/ersetzt die xrandr --primary Zeile in execs.conf."""
-    from pathlib import Path
-    execs = Path.home() / ".config/hypr/hyprland/execs.conf"
-    execs.parent.mkdir(parents=True, exist_ok=True)
+    """Schreibt/ersetzt die xrandr --primary Zeile in hypr-user.lua oder execs.conf."""
+    from src.config import is_lua_mode, CAELESTIA_HYPR_USER, HYPR_EXECS_CONF, ensure_hypr_user_lua
 
-    new_line = f"exec-once = xrandr --output {name} --primary"
-
-    if execs.exists():
-        lines = execs.read_text().splitlines()
+    if is_lua_mode():
+        ensure_hypr_user_lua()
+        new_line = f'hl.exec_cmd("xrandr --output {name} --primary")'
+        content = CAELESTIA_HYPR_USER.read_text()
+        lines = content.splitlines()
         replaced = False
         for i, line in enumerate(lines):
-            if "xrandr --output" in line and "--primary" in line:
+            if "xrandr" in line and "--primary" in line:
                 lines[i] = new_line
                 replaced = True
                 break
         if not replaced:
-            # Nach dem Monitor-Settings-Kommentar einfügen oder ans Ende
+            lines.append(new_line)
+        CAELESTIA_HYPR_USER.write_text("\n".join(lines) + "\n")
+    else:
+        HYPR_EXECS_CONF.parent.mkdir(parents=True, exist_ok=True)
+        new_line = f"exec-once = xrandr --output {name} --primary"
+        if HYPR_EXECS_CONF.exists():
+            lines = HYPR_EXECS_CONF.read_text().splitlines()
+            replaced = False
             for i, line in enumerate(lines):
-                if "Monitor Settings" in line:
-                    lines.insert(i + 1, new_line)
+                if "xrandr --output" in line and "--primary" in line:
+                    lines[i] = new_line
                     replaced = True
                     break
             if not replaced:
-                lines.append(new_line)
-        execs.write_text("\n".join(lines) + "\n")
-    else:
-        execs.write_text(f"# Monitor Settings\n{new_line}\n")
+                for i, line in enumerate(lines):
+                    if "Monitor Settings" in line:
+                        lines.insert(i + 1, new_line)
+                        replaced = True
+                        break
+                if not replaced:
+                    lines.append(new_line)
+            HYPR_EXECS_CONF.write_text("\n".join(lines) + "\n")
+        else:
+            HYPR_EXECS_CONF.write_text(f"# Monitor Settings\n{new_line}\n")
 
     # Live anwenden
     try:
@@ -210,7 +337,9 @@ def _set_bar_persistent(monitor_name: str, persistent: bool):
         if shell.exists():
             data = json.loads(shell.read_text())
         data.setdefault("bar", {})["persistent"] = persistent
-        shell.write_text(json.dumps(data, indent=4))
+        from src.safe_io import atomic_write_json
+
+        atomic_write_json(shell, data)
     except Exception as e:
         print(f"shell.json schreiben fehler: {e}")
 
@@ -232,6 +361,12 @@ def _build_monitor_keyword(m) -> str:
 
     if m.transform and m.transform != "0":
         parts += ["transform", m.transform]
+
+    if getattr(m, "vrr", "0"):
+        parts += ["vrr", m.vrr]
+
+    if getattr(m, "mirror", ""):
+        parts += ["mirror", m.mirror]
 
     return ",".join(parts)
 
@@ -271,6 +406,16 @@ class MonitorModel:
 
         # Bitdepth aus monitors.conf (via _parse_conf_extras angereichert)
         self.bitdepth    = str(data.get("bitdepth", ""))
+        # VRR: raw config value (0-3) if present, otherwise the live boolean
+        raw_vrr = data.get("vrr")
+        if isinstance(raw_vrr, str):
+            self.vrr = raw_vrr
+        else:
+            self.vrr = "1" if raw_vrr else "0"
+        # Mirror target ("" = off)
+        self.mirror = str(data.get("mirror") or "")
+        if self.mirror == "none":
+            self.mirror = ""
         # Hauptmonitor-Flag — wird separat aus execs.conf gesetzt
         self.primary     = False
         # Taskleiste persistent — wird aus shell.json geladen
@@ -315,6 +460,8 @@ class MonitorModel:
             "scale":      self.scale,
             "transform":  self.transform,
             "bitdepth":   self.bitdepth,
+            "vrr":        self.vrr,
+            "mirror":     self.mirror,
         }
 
 
@@ -589,6 +736,30 @@ class MonitorSettingsPanel(Gtk.Box):
         bd_row.add_suffix(self._bd_combo)
         self._group.add(bd_row)
 
+        # ── Variable refresh rate ──
+        vrr_row = Adw.ActionRow(
+            title=t("Variable refresh rate"),
+            subtitle=t("VRR / FreeSync / adaptive sync"),
+        )
+        self._vrr_combo = Gtk.ComboBoxText()
+        self._vrr_combo.set_valign(Gtk.Align.CENTER)
+        for v_id, v_lbl in VRR_OPTIONS:
+            self._vrr_combo.append(v_id, v_lbl)
+        self._vrr_combo.connect("changed", self._on_vrr_changed)
+        vrr_row.add_suffix(self._vrr_combo)
+        self._group.add(vrr_row)
+
+        # ── Mirror ──
+        mirror_row = Adw.ActionRow(
+            title=t("Mirror display"),
+            subtitle=t("Show the same image as another monitor"),
+        )
+        self._mirror_combo = Gtk.ComboBoxText()
+        self._mirror_combo.set_valign(Gtk.Align.CENTER)
+        self._mirror_combo.connect("changed", self._on_mirror_changed)
+        mirror_row.add_suffix(self._mirror_combo)
+        self._group.add(mirror_row)
+
         # ── Skalierung ──
         scale_row = Adw.ActionRow(title=t("Scale"))
         self._scale_spin = Gtk.SpinButton.new_with_range(0.25, 4.0, 0.25)
@@ -651,6 +822,9 @@ class MonitorSettingsPanel(Gtk.Box):
 
         self._rot_combo.set_active_id(m.transform)
         self._bd_combo.set_active_id(m.bitdepth if m.bitdepth else "")
+        if not self._vrr_combo.set_active_id(m.vrr):
+            self._vrr_combo.set_active_id("0")
+        self._rebuild_mirror_options(m)
         self._scale_spin.set_value(m.scale)
         self._enabled_row.set_active(not m.disabled)
         self._primary_row.set_active(m.primary)
@@ -697,6 +871,37 @@ class MonitorSettingsPanel(Gtk.Box):
         if self._loading or not self._monitor: return
         bd = combo.get_active_id()
         if bd is not None: self._monitor.bitdepth = bd
+
+    def set_mirror_options(self, names: list[str]):
+        self._mirror_names = list(names)
+        if self._monitor:
+            self._rebuild_mirror_options(self._monitor)
+
+    def _rebuild_mirror_options(self, m: MonitorModel):
+        names = getattr(self, "_mirror_names", [])
+        self._loading = True
+        try:
+            self._mirror_combo.remove_all()
+            self._mirror_combo.append("none", t("None"))
+            for name in names:
+                if name != m.name:
+                    self._mirror_combo.append(name, name)
+            if not self._mirror_combo.set_active_id(m.mirror or "none"):
+                self._mirror_combo.set_active_id("none")
+        finally:
+            self._loading = False
+
+    def _on_vrr_changed(self, combo):
+        if self._loading or not self._monitor: return
+        vrr = combo.get_active_id()
+        if vrr is not None:
+            self._monitor.vrr = vrr
+
+    def _on_mirror_changed(self, combo):
+        if self._loading or not self._monitor: return
+        mirror = combo.get_active_id()
+        if mirror is not None:
+            self._monitor.mirror = "" if mirror == "none" else mirror
 
     def _on_scale_changed(self, spin):
         if self._loading or not self._monitor: return
@@ -777,6 +982,7 @@ class MonitorPage(Gtk.Box):
     def load_monitors(self):
         raw = _get_live_monitors()
         self._monitors = [MonitorModel(m) for m in raw]
+        self._settings_panel.set_mirror_options([m.name for m in self._monitors])
 
         # Hauptmonitor aus execs.conf markieren
         primary_name = _get_primary_monitor()

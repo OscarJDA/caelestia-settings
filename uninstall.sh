@@ -34,6 +34,12 @@ HYPR_INCLUDES_DIR="$HYPR_CONFIG_DIR/hyprland"
 RULES_CONFIG_FILE="$HYPR_INCLUDES_DIR/rules.conf"
 KEYBINDS_CONFIG_FILE="$HYPR_INCLUDES_DIR/keybinds.conf"
 
+CAELESTIA_DIR="$HOME/.config/caelestia"
+CAELESTIA_HYPR_USER="$CAELESTIA_DIR/hypr-user.lua"
+CAELESTIA_KEYBINDS_LUA="$CAELESTIA_DIR/user-keybinds.lua"
+CAELESTIA_RULES_LUA="$CAELESTIA_DIR/rules.lua"
+CAELESTIA_OVERRIDES_LUA="$CAELESTIA_DIR/settings-overrides.lua"
+
 # --- 2. Confirm ---
 # Optional first positional argument: PID of the running app (passed by the
 # About page's Uninstall button, same convention as app_update.sh), so the
@@ -58,6 +64,7 @@ if [ "$SKIP_CONFIRM" = false ]; then
     echo "  - $APP_TARGET_DESKTOP"
     echo "  - The Caelestia Settings window rules in $RULES_CONFIG_FILE"
     echo "  - The Super+I keybind (if present in hyprland.conf/keybinds.conf)"
+    echo "  - The generated Hyprland override layer (~/.config/caelestia/settings-overrides.lua)"
     echo
     read -r -p "Continue? [y/N] " REPLY
     case "$REPLY" in
@@ -108,6 +115,7 @@ echo
 # --- 6. Remove app-specific Hyprland window rules ---
 echo ">>> STEP 4: Removing Hyprland window rules..."
 RULES_TAG="# Caelestia Settings Rules"
+RULE_REMOVED=false
 if [ -f "$RULES_CONFIG_FILE" ] && grep -q -F "$RULES_TAG" "$RULES_CONFIG_FILE"; then
     sed -i \
         -e "/^${RULES_TAG//\//\\/}\$/d" \
@@ -115,7 +123,16 @@ if [ -f "$RULES_CONFIG_FILE" ] && grep -q -F "$RULES_TAG" "$RULES_CONFIG_FILE"; 
         -e '/^windowrule = center 1, match:class org\\.caelestia\\.settings$/d' \
         "$RULES_CONFIG_FILE"
     echo "--- Removed window rules from $RULES_CONFIG_FILE"
-else
+    RULE_REMOVED=true
+fi
+for f in "$CAELESTIA_HYPR_USER" "$CAELESTIA_RULES_LUA"; do
+    if [ -f "$f" ] && grep -q -F "org.caelestia.settings" "$f"; then
+        sed -i '/org\.caelestia\.settings/d' "$f"
+        echo "--- Removed window rules from $f"
+        RULE_REMOVED=true
+    fi
+done
+if [ "$RULE_REMOVED" = false ]; then
     echo "--- Not found, skipping."
 fi
 echo
@@ -123,9 +140,9 @@ echo
 # --- 7. Remove the Super+I keybind ---
 echo ">>> STEP 5: Removing Super+I keybind..."
 BIND_REMOVED=false
-for f in "$HYPR_CONFIG_FILE" "$KEYBINDS_CONFIG_FILE"; do
-    if [ -f "$f" ] && grep -q -F "exec, caelestia-settings" "$f"; then
-        sed -i '/exec, caelestia-settings/d' "$f"
+for f in "$HYPR_CONFIG_FILE" "$KEYBINDS_CONFIG_FILE" "$CAELESTIA_HYPR_USER" "$CAELESTIA_KEYBINDS_LUA"; do
+    if [ -f "$f" ] && grep -q -F "caelestia-settings" "$f"; then
+        sed -i '/caelestia-settings/d' "$f"
         echo "--- Removed keybind from $f"
         BIND_REMOVED=true
     fi
@@ -135,7 +152,21 @@ if [ "$BIND_REMOVED" = false ]; then
 fi
 echo
 
-# --- 8. Optionally remove user config/data ---
+# --- 8. Remove generated Hyprland override layer ---
+echo ">>> STEP 5b: Removing generated Hyprland overrides..."
+if [ -f "$CAELESTIA_OVERRIDES_LUA" ]; then
+    rm -f "$CAELESTIA_OVERRIDES_LUA"
+    echo "--- Removed $CAELESTIA_OVERRIDES_LUA"
+else
+    echo "--- Not found, skipping."
+fi
+if [ -f "$CAELESTIA_HYPR_USER" ] && grep -q -F "settings-overrides" "$CAELESTIA_HYPR_USER"; then
+    sed -i '/settings-overrides/d' "$CAELESTIA_HYPR_USER"
+    echo "--- Removed override loader from $CAELESTIA_HYPR_USER"
+fi
+echo
+
+# --- 9. Optionally remove user config/data ---
 echo ">>> STEP 6: User configuration..."
 if [ -d "$USER_CONFIG_DIR" ]; then
     if [ "$SKIP_CONFIRM" = true ]; then

@@ -24,11 +24,62 @@ RULES_CONFIG_FILE="$HYPR_INCLUDES_DIR/rules.conf"
 MONITOR_CONFIG_FILE="$HYPR_INCLUDES_DIR/monitors.conf"
 KEYBINDS_CONFIG_FILE="$HYPR_INCLUDES_DIR/keybinds.conf"
 
+HYPR_LUA_FILE="$HYPR_CONFIG_DIR/hyprland.lua"
+CAELESTIA_DIR="$HOME/.config/caelestia"
+CAELESTIA_HYPR_USER="$CAELESTIA_DIR/hypr-user.lua"
+CAELESTIA_MONITORS_LUA="$CAELESTIA_DIR/monitors.lua"
+CAELESTIA_RULES_LUA="$CAELESTIA_DIR/rules.lua"
+CAELESTIA_KEYBINDS_LUA="$CAELESTIA_DIR/user-keybinds.lua"
+
 # Collects "<status>: <label>" strings for the closing summary. Global
 # (not local) on purpose: run_hyprland_doctor() is the only place this is
 # read back, but keeping it a plain script-level array is simpler than
 # threading a return value through check_and_add()'s call sites.
 _DOCTOR_RESULTS=()
+
+is_lua_mode() {
+    [[ -f "$HYPR_LUA_FILE" ]] || [[ -f "$CAELESTIA_HYPR_USER" && ! -f "$HYPR_CONFIG_FILE" ]]
+}
+
+# Returns 0 if any of the "|"-separated literal NEEDLES is present in FILE.
+contains_any() {
+    local file="$1"
+    local needles="$2"
+    local n
+    local IFS='|'
+
+    for n in $needles; do
+        [[ -n "$n" ]] || continue
+        if grep -q -F "$n" "$file" 2>/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# check_and_add_lua NEEDLES CONTENT LABEL [ALSO_CHECK_FILE]
+#
+# NEEDLES is a "|"-separated list of literal strings — alternate spellings of
+# the same line, e.g. wrapped in pcall() or not. The line is appended only
+# when none of them is present yet. Matching a single exact spelling is how
+# this used to add a duplicate copy of these requires on every run: the
+# content written is `pcall(require, "x")`, which never contains the needle
+# `require("x")` (note the ", " between them).
+check_and_add_lua() {
+    local needles="$1"
+    local content="$2"
+    local label="$3"
+    local also_check_file="$4"
+
+    if contains_any "$CAELESTIA_HYPR_USER" "$needles" \
+        || { [[ -n "$also_check_file" ]] && contains_any "$also_check_file" "$needles"; }; then
+        _DOCTOR_RESULTS+=("OK:    $label")
+    else
+        echo "    ...Adding: $label"
+        printf '%s\n' "$content" >> "$CAELESTIA_HYPR_USER"
+        _DOCTOR_RESULTS+=("FIXED: $label (was missing, now added)")
+    fi
+}
 
 # check_and_add NEEDLE CONTENT LABEL [ALSO_CHECK_FILE]
 #
@@ -36,13 +87,6 @@ _DOCTOR_RESULTS=()
 # NEEDLE is already found there — or, when ALSO_CHECK_FILE is given, found
 # in that file instead (grep -F, literal match — these lines can contain
 # characters like '.' that would otherwise be regex metacharacters).
-#
-# ALSO_CHECK_FILE exists for lines that can legitimately live in a
-# *different* file than the one we'd append to: the app's own Keybinds page
-# writes binds into keybinds.conf, sourced from hyprland.conf, so a Super+I
-# bind found there is just as real as one directly in hyprland.conf — without
-# this, doctor.sh would add a second, redundant bind on top of one already
-# managed by the Keybinds page.
 check_and_add() {
     local needle="$1"
     local content="$2"
@@ -53,7 +97,7 @@ check_and_add() {
         || { [[ -n "$also_check_file" ]] && grep -q -F "$needle" "$also_check_file" 2>/dev/null; }; then
         _DOCTOR_RESULTS+=("OK:    $label")
     else
-        echo "   ...Adding: $label"
+        echo "    ...Adding: $label"
         printf '%s\n' "$content" >> "$HYPR_CONFIG_FILE"
         _DOCTOR_RESULTS+=("FIXED: $label (was missing, now added)")
     fi
@@ -61,40 +105,48 @@ check_and_add() {
 
 run_hyprland_doctor() {
     echo ">>> Checking Hyprland integration..."
-
-    mkdir -p "$HYPR_CONFIG_DIR"
-    mkdir -p "$HYPR_INCLUDES_DIR"
-    touch "$HYPR_CONFIG_FILE"
-    touch "$RULES_CONFIG_FILE"
-    touch "$MONITOR_CONFIG_FILE"
-
     _DOCTOR_RESULTS=()
 
-    local rules_source="source = $RULES_CONFIG_FILE"
-    check_and_add "$rules_source" "$rules_source" "rules.conf 'source' line"
+    if is_lua_mode; then
+        echo "    ...Detected Caelestia 2.5.0+ (Hyprland Lua configuration mode)"
+        mkdir -p "$CAELESTIA_DIR"
+        touch "$CAELESTIA_HYPR_USER"
+        touch "$CAELESTIA_MONITORS_LUA"
+        touch "$CAELESTIA_RULES_LUA"
+        touch "$CAELESTIA_KEYBINDS_LUA"
 
-    # Kept identical to install.sh's original output: a leading blank line
-    # and a comment header precede the monitors.conf source line, but the
-    # rules.conf one above does not get either — matching that asymmetry
-    # exactly so re-running this on an existing install produces the same
-    # bytes install.sh itself would have written.
-    local monitor_source="source = $MONITOR_CONFIG_FILE"
-    local monitor_block
-    monitor_block=$(printf '\n# Caelestia Monitor Config\n%s' "$monitor_source")
-    check_and_add "$monitor_source" "$monitor_block" "monitors.conf 'source' line"
+        check_and_add_lua 'pcall(require, "monitors")|require("monitors")' 'pcall(require, "monitors")' "monitors.lua module require"
+        check_and_add_lua 'pcall(require, "rules")|require("rules")' 'pcall(require, "rules")' "rules.lua module require"
+        check_and_add_lua 'pcall(require, "user-keybinds")|require("user-keybinds")' 'pcall(require, "user-keybinds")' "user-keybinds.lua module require"
+        check_and_add_lua 'caelestia-settings' 'hl.bind("SUPER + I", hl.dsp.exec_cmd("caelestia-settings"))' "Super+I keybind" "$CAELESTIA_KEYBINDS_LUA"
+        check_and_add_lua 'org.caelestia.settings' 'hl.window_rule({ match = { class = "org.caelestia.settings" }, float = true, center = true })' "Settings window rule (float & center)" "$CAELESTIA_RULES_LUA"
 
-    # Loose needle ("exec, caelestia-settings", not the exact "bind = ..."
-    # line) on purpose: modifier casing varies between where this line can
-    # show up (SUPER here vs. Super as written by the Keybinds page), and
-    # nothing else would ever exec this app, so the substring is unambiguous
-    # without needing to match Hyprland's exact bind syntax.
-    local bind_needle="exec, caelestia-settings"
-    local bind_cmd="bind = SUPER, I, exec, caelestia-settings"
-    check_and_add "$bind_needle" "$bind_cmd" "Super+I keybind" "$KEYBINDS_CONFIG_FILE"
+        local polkit_bin="/usr/lib/polkit-kde-authentication-agent-1"
+        check_and_add_lua "$polkit_bin" "hl.exec_cmd(\"$polkit_bin\")" "Polkit auth agent autostart"
+    else
+        echo "    ...Detected classic Hyprland configuration (.conf mode)"
+        mkdir -p "$HYPR_CONFIG_DIR"
+        mkdir -p "$HYPR_INCLUDES_DIR"
+        touch "$HYPR_CONFIG_FILE"
+        touch "$RULES_CONFIG_FILE"
+        touch "$MONITOR_CONFIG_FILE"
 
-    local polkit_needle="/usr/lib/polkit-kde-authentication-agent-1"
-    local polkit_cmd="exec-once = $polkit_needle"
-    check_and_add "$polkit_needle" "$polkit_cmd" "Polkit auth agent autostart"
+        local rules_source="source = $RULES_CONFIG_FILE"
+        check_and_add "$rules_source" "$rules_source" "rules.conf 'source' line"
+
+        local monitor_source="source = $MONITOR_CONFIG_FILE"
+        local monitor_block
+        monitor_block=$(printf '\n# Caelestia Monitor Config\n%s' "$monitor_source")
+        check_and_add "$monitor_source" "$monitor_block" "monitors.conf 'source' line"
+
+        local bind_needle="exec, caelestia-settings"
+        local bind_cmd="bind = SUPER, I, exec, caelestia-settings"
+        check_and_add "$bind_needle" "$bind_cmd" "Super+I keybind" "$KEYBINDS_CONFIG_FILE"
+
+        local polkit_needle="/usr/lib/polkit-kde-authentication-agent-1"
+        local polkit_cmd="exec-once = $polkit_needle"
+        check_and_add "$polkit_needle" "$polkit_cmd" "Polkit auth agent autostart"
+    fi
 
     echo
     echo ">>> Hyprland integration summary:"
