@@ -7,8 +7,12 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Mock gi and caelestia_core if running in environments without them installed
-if "gi" not in sys.modules:
+# Mock gi and caelestia_core only when they are genuinely unavailable.
+# Mocking gi unconditionally poisons sys.modules for test_network, which then
+# receives MagicMock enum values from libnm.
+try:
+    import gi  # noqa: F401
+except ImportError:
     gi_mock = MagicMock()
     sys.modules["gi"] = gi_mock
     sys.modules["gi.repository"] = MagicMock()
