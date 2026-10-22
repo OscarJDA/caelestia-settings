@@ -658,6 +658,110 @@ def _build_line(data: dict) -> str:
     return line
 
 
+def _lua_action(disp: str, arg: str) -> str | None:
+    """Translate a legacy Hyprland dispatcher into the Lua dispatcher API.
+
+    Hyprland 0.56 removed the old ``hl.dispatch("name", "arg")`` form.  Writing
+    that form produced a keybind file that failed to load, so map the
+    dispatchers exposed by the editor to their ``hl.dsp`` equivalents.
+    Returns ``None`` for dispatchers that have no direct Lua equivalent.
+    """
+    def q(value) -> str:
+        return json.dumps(str(value))
+    d = disp.lower().strip()
+    a = arg.strip()
+
+    if d == "exec":
+        return f"hl.dsp.exec_cmd({q(a)})"
+    if d in ("killactive", "closewindow"):
+        return "hl.dsp.window.close()"
+    if d == "workspace":
+        return f"hl.dsp.focus({{ workspace = {q(a)} }})" if a else None
+    if d == "movetoworkspace":
+        return f"hl.dsp.window.move({{ workspace = {q(a)} }})" if a else None
+    if d == "movetoworkspacesilent":
+        return f"hl.dsp.window.move({{ workspace = {q(a)}, silent = true }})" if a else None
+    if d == "togglefloating":
+        return 'hl.dsp.window.float({ action = "toggle" })'
+    if d == "fullscreen":
+        mode = {"0": "fullscreen", "1": "maximized", "2": "fullscreen"}.get(a, a or "fullscreen")
+        return f"hl.dsp.window.fullscreen({{ mode = {q(mode)} }})"
+    if d == "dpms":
+        return f"hl.dsp.dpms({{ action = {q(a or 'toggle')} }})"
+    if d == "pin":
+        return "hl.dsp.window.pin()"
+    if d == "movefocus":
+        return f"hl.dsp.focus({{ direction = {q(a)} }})" if a else None
+    if d == "movewindow":
+        return f"hl.dsp.window.move({{ direction = {q(a)} }})" if a else None
+    if d == "resizewindow":
+        return "hl.dsp.window.resize()"
+    if d == "resizeactive":
+        if "keepaspect" in a.lower():
+            return "hl.dsp.window.resize({ keep_aspect_ratio = true })"
+        numbers = re.findall(r"-?\d+(?:\.\d+)?", a)
+        if len(numbers) >= 2:
+            return f"hl.dsp.window.resize({{ x = {numbers[0]}, y = {numbers[1]} }})"
+        return None
+    if d == "cyclenext":
+        if a == "prev":
+            return "hl.dsp.window.cycle_next({ prev = true })"
+        if a == "last":
+            return "hl.dsp.window.cycle_next({ last = true })"
+        return "hl.dsp.window.cycle_next({ next = true })"
+    if d == "swapnext":
+        return "hl.dsp.window.swap({ prev = true })" if a == "prev" else "hl.dsp.window.swap({ next = true })"
+    if d == "focuswindow":
+        return f"hl.dsp.focus({{ window = {q(a)} }})" if a else None
+    if d == "focusmonitor":
+        return f"hl.dsp.focus({{ monitor = {q(a)} }})" if a else None
+    if d == "splitratio":
+        return f"hl.dsp.layout({q('splitratio ' + a)})" if a else None
+    if d == "toggleopaque":
+        return 'hl.dsp.window.set_prop({ prop = "opaque", value = "toggle" })'
+    if d == "movecursortocorner":
+        corner = int(a) if a.isdigit() else 0
+        return f"hl.dsp.cursor.move_to_corner({{ corner = {corner} }})"
+    if d == "exit":
+        return "hl.dsp.exit()"
+    if d == "forcerendererreload":
+        return "hl.dsp.force_renderer_reload()"
+    if d == "movecurrentworkspacetomonitor":
+        return f"hl.dsp.workspace.move({{ monitor = {q(a)} }})" if a else None
+    if d == "focusworkspaceoncurrentmonitor":
+        return f"hl.dsp.focus({{ workspace = {q(a)}, monitor = 'current' }})" if a else None
+    if d == "togglespecialworkspace":
+        return f"hl.dsp.workspace.toggle_special({q(a)})" if a else "hl.dsp.workspace.toggle_special()"
+    if d == "swapactiveworkspaces":
+        monitors = a.split()
+        if len(monitors) >= 2:
+            return f"hl.dsp.workspace.swap_monitors({{ monitor1 = {q(monitors[0])}, monitor2 = {q(monitors[1])} }})"
+        return None
+    if d == "bringactivetotop":
+        return "hl.dsp.window.bring_to_top()"
+    if d == "alterzorder":
+        return f"hl.dsp.window.alter_zorder({{ mode = {q(a or 'top')} }})"
+    if d == "togglesplit":
+        return 'hl.dsp.layout("togglesplit")'
+    if d == "layoutmsg":
+        return f"hl.dsp.layout({q(a)})" if a else None
+    if d == "global":
+        return f"hl.dsp.global({q(a)})" if a else None
+    if d == "submap":
+        return f"hl.dsp.submap({q(a)})" if a else None
+    if d == "moveoutofgroup":
+        return "hl.dsp.window.move({ out_of_group = true })"
+    if d == "changegroupactive":
+        return "hl.dsp.group.prev()" if a == "prev" else "hl.dsp.group.next()"
+    if d == "togglegroup":
+        return "hl.dsp.group.toggle()"
+    if d == "lockactivegroup":
+        return "hl.dsp.group.lock_active()"
+    if d == "centerwindow":
+        return "hl.dsp.window.center()"
+    return None
+
+
 def _build_lua_line(data: dict) -> str:
     combo_parts = []
     mod = data.get("modifier", "").strip()
@@ -673,12 +777,11 @@ def _build_lua_line(data: dict) -> str:
     arg = data.get("argument", "").strip()
     comment = data.get("comment", "").strip()
 
-    if disp == "exec":
-        action = f"hl.dsp.exec_cmd({json.dumps(arg)})"
-    elif arg:
-        action = f"function() hl.dispatch({json.dumps(disp)}, {json.dumps(arg)}) end"
-    else:
-        action = f"function() hl.dispatch({json.dumps(disp)}) end"
+    action = _lua_action(disp, arg)
+    if action is None:
+        raise ValueError(
+            t("The dispatcher {name} is not supported in Lua mode.").format(name=disp)
+        )
 
     flags_map = {
         "binde": "{ repeating = true }",

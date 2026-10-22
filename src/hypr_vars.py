@@ -67,6 +67,7 @@ def set_hypr_variable(key: str, value: Any) -> bool:
     text = _read()
     if not text:
         return False
+    original = text
 
     rendered = _render(value)
     pattern = re.compile(
@@ -95,4 +96,6 @@ def set_hypr_variable(key: str, value: Any) -> bool:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
+    if text == original:
+        return True
     return atomic_write_text(HYPR_VARIABLES, text)

@@ -265,7 +265,7 @@ class DisplayPage(Adw.PreferencesPage):
         ok = self._set_autostart(row.get_active())
         self._save_night_settings()
         self._toast(
-            "Night light will start at login"
+            t("Night light will start at login")
             if row.get_active() and ok
             else (t("Autostart disabled") if ok else t("Could not update the autostart file"))
         )
@@ -513,7 +513,7 @@ class DisplayPage(Adw.PreferencesPage):
         else:
             self._update_night_status(t("gamma reset failed"))
             self._toast(
-                "Gamma reset failed (Hyprland may report gamma_size 0). Log out or restart Hyprland."
+                t("Gamma reset failed (Hyprland may report gamma_size 0). Log out or restart Hyprland.")
             )
             print(f"Gamma reset failed: {message}")
         return False
@@ -555,7 +555,7 @@ class DisplayPage(Adw.PreferencesPage):
         self._save_night_settings()
         self._set_autostart(False)
         self._stop_night_light(reset=True)
-        self._toast("gammastep stopped — resetting gamma…")
+        self._toast(t("gammastep stopped — resetting gamma…"))
 
     # ── DDC/CI ────────────────────────────────────────────────────────────
 

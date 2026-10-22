@@ -243,9 +243,9 @@ class MediaGrid(Gtk.Box):
 
         if not files:
             self.empty_label.set_label(
-                "Keine Videos gefunden.\nVideos in ~/Videos/Wallpaper/ ablegen."
+                t("No videos found.\nPlace videos in ~/Videos/Wallpaper/")
                 if is_video else
-                "Keine Bilder gefunden.\nBilder in ~/Bilder/Wallpapers/ ablegen."
+                t("No images found.\nPlace images in the wallpaper folder.")
             )
             self.empty_label.set_visible(True)
             return
@@ -443,7 +443,7 @@ class WallpaperPage(Gtk.Box):
 
         # An/Aus
         self._clock_enabled = Adw.SwitchRow(title=t("Show clock"))
-        self._clock_enabled.set_active(clk.get("enabled", True))
+        self._clock_enabled.set_active(clk.get("enabled", False))
         self._clock_enabled.connect("notify::active", self._on_clock_changed)
         clock_expander.add_row(self._clock_enabled)
 
@@ -453,7 +453,7 @@ class WallpaperPage(Gtk.Box):
         self._clock_pos.set_valign(Gtk.Align.CENTER)
         for pid, plabel in CLOCK_POSITIONS:
             self._clock_pos.append(pid, plabel)
-        self._clock_pos.set_active_id(clk.get("position", "top-right"))
+        self._clock_pos.set_active_id(clk.get("position", "bottom-right"))
         self._clock_pos.connect("changed", self._on_clock_changed)
         pos_row.add_suffix(self._clock_pos)
         clock_expander.add_row(pos_row)

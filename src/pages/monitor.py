@@ -311,18 +311,32 @@ def _set_primary_monitor(name: str):
 # ── shell.json Helpers ───────────────────────────────────────────────────────
 
 def _get_bar_persistent(monitor_name: str) -> bool:
-    """Liest ob die Taskleiste für diesen Monitor persistent ist."""
+    """Liest, ob die Taskleiste für diesen Monitor persistent ist.
+
+    Per-monitor shell.json overrides take precedence; otherwise inherit the
+    global bar.persistent value from ~/.config/caelestia/shell.json.
+    """
     import json
     from pathlib import Path
-    shell = Path.home() / ".config/caelestia/monitors" / monitor_name / "shell.json"
-    if not shell.exists():
-        return True  # Standard: Taskleiste an
-    try:
-        data = json.loads(shell.read_text())
-        return data.get("bar", {}).get("persistent", True)
-    except Exception as e:
-        print(f"shell.json lesen fehler: {e}")
-        return True
+    from src.config import CAELESTIA_SHELL_JSON
+
+    def _read(path: Path) -> dict:
+        try:
+            return json.loads(path.read_text())
+        except Exception:
+            return {}
+
+    override = (
+        Path.home() / ".config/caelestia/monitors" / monitor_name / "shell.json"
+    )
+    if override.exists():
+        data = _read(override)
+        value = data.get("bar", {}).get("persistent")
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, dict):
+            print(f"Unexpected bar.persistent override for {monitor_name}: {value!r}")
+    return bool(_read(CAELESTIA_SHELL_JSON).get("bar", {}).get("persistent", True))
 
 
 def _set_bar_persistent(monitor_name: str, persistent: bool):

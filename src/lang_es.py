@@ -1513,3 +1513,39 @@ TRANSLATIONS_ES.update({
     "Also limits the hardware volume keys": "También limita las teclas de volumen del teclado",
     "Could not update variables.lua": "No se pudo actualizar variables.lua",
 })
+
+TRANSLATIONS_ES.update({
+    "Written to variables.lua and applied on the next Hyprland reload.": "Se escriben en variables.lua y se aplican en la próxima recarga de Hyprland.",
+    "Could not update variables.lua ({key})": "No se pudo actualizar variables.lua ({key})",
+})
+
+
+TRANSLATIONS_ES.update({
+    "No monitor": "Sin monitor",
+    "Monitor: {name}": "Monitor: {name}",
+})
+
+TRANSLATIONS_ES.update({
+    "Low battery": "Batería baja",
+    "You might want to plug in a charger": "Quizá quieras conectar el cargador",
+    "{action}?": "¿{action}?",
+    "The system will {action} now.": "El sistema se va a {action} ahora.",
+})
+
+TRANSLATIONS_ES.update({
+    "gammastep stopped — resetting gamma…": "gammastep detenido — restableciendo gamma…",
+})
+
+TRANSLATIONS_ES.update({
+    "No images found.\nPlace images in the wallpaper folder.": "No se encontraron imágenes.\nColoca imágenes en la carpeta de fondos.",
+    "No videos found.\nPlace videos in ~/Videos/Wallpaper/": "No se encontraron videos.\nColoca videos en ~/Videos/Wallpaper/",
+    "Gamma reset failed (Hyprland may report gamma_size 0). Log out or restart Hyprland.": "No se pudo restablecer la gamma (Hyprland puede reportar gamma_size 0). Cierra sesión o reinicia Hyprland.",
+})
+
+TRANSLATIONS_ES.update({
+    "The dispatcher {name} is not supported in Lua mode.": "La acción {name} no es compatible con el modo Lua.",
+})
+
+TRANSLATIONS_ES.update({
+    "Default {key}": "Predeterminado: {key}",
+})

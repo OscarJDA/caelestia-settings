@@ -74,8 +74,8 @@ class PowerPage(SettingsPage):
             title_key="title",
             new_item={
                 "level": 15,
-                "title": "Low battery",
-                "message": "You might want to plug in a charger",
+                "title": t("Low battery"),
+                "message": t("You might want to plug in a charger"),
                 "icon": "battery_android_frame_2",
                 "critical": False,
             },
@@ -163,12 +163,13 @@ class PowerPage(SettingsPage):
         return True
 
     def _session_action(self, action: str) -> None:
+        label = t("Suspend") if action == "suspend" else t("Hibernate")
         dialog = Adw.AlertDialog(
-            heading=f"{action.title()}?",
-            body=f"The system will {action} now.",
+            heading=t("{action}?").format(action=label),
+            body=t("The system will {action} now.").format(action=label.lower()),
         )
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("go", action.title())
+        dialog.add_response("cancel", t("Cancel"))
+        dialog.add_response("go", label)
         dialog.set_response_appearance("go", Adw.ResponseAppearance.DESTRUCTIVE)
 
         def on_response(_dialog, response: str) -> None:

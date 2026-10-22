@@ -68,6 +68,7 @@ APPEARANCE_SPEC = PageSpec(
                 Option(
                     "appearance.transparency.enabled",
                     "Transparency effects",
+                    default=False,
                     subtitle="Blur/transparent surfaces across the shell",
                 ),
                 Option(
@@ -213,6 +214,7 @@ def _font_size_rows(style: str, large: int, medium: int, small: int, weight: int
             Option(
                 f"appearance.font.{style}.{size_key}.italic",
                 f"{label} italic",
+                default=False,
                 subtitle="Italic variant for this size",
             )
         )
@@ -483,7 +485,7 @@ BAR_SPEC = PageSpec(
                     minimum=0,
                     maximum=20,
                 ),
-                Option("bar.workspaces.label", "Workspace label", kind="string", default="  "),
+                Option("bar.workspaces.label", "Workspace label", kind="string", default="\uf444  "),
                 Option("bar.workspaces.occupiedLabel", "Occupied label", kind="string", default="󰮯"),
                 Option("bar.workspaces.activeLabel", "Active label", kind="string", default="󰮯"),
             ],

@@ -267,7 +267,7 @@ class WorkspacesPage(Gtk.Box):
         # Gruppiert nach Monitor
         by_monitor: dict[str, list[dict]] = {}
         for ws in self._workspaces:
-            mon = ws["monitor"] or "Ohne Monitor"
+            mon = ws["monitor"] or t("No monitor")
             by_monitor.setdefault(mon, []).append(ws)
 
         # Reihenfolge: wie in hyprctl monitors (physische Reihenfolge), Rest danach
@@ -281,7 +281,7 @@ class WorkspacesPage(Gtk.Box):
 
         for mon in order:
             wss = by_monitor[mon]
-            group = Adw.PreferencesGroup(title=f"Monitor: {mon}")
+            group = Adw.PreferencesGroup(title=t("Monitor: {name}").format(name=mon))
             for ws in wss:
                 row = WorkspaceRow(ws, self._monitor_names, self._on_delete)
                 self._rows.append(row)
@@ -303,13 +303,13 @@ class WorkspacesPage(Gtk.Box):
         child = self._content.get_first_child()
         while child:
             if isinstance(child, Adw.PreferencesGroup):
-                if child.get_title() == f"Monitor: {default_mon}":
+                if child.get_title() == t("Monitor: {name}").format(name=default_mon):
                     group = child
                     break
             child = child.get_next_sibling()
 
         if group is None:
-            group = Adw.PreferencesGroup(title=f"Monitor: {default_mon}")
+            group = Adw.PreferencesGroup(title=t("Monitor: {name}").format(name=default_mon))
             self._content.append(group)
 
         row = WorkspaceRow(new_ws, self._monitor_names, self._on_delete)

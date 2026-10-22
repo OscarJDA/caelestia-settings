@@ -12,7 +12,7 @@ except ImportError:
 from src.config import parse_monitors_conf
 from src.lang import t
 from src.pages.fans import read_cpu_temp, read_gpu_stats
-from src.pages.general import KEYBOARD_LAYOUTS, read_input_conf
+from src.pages.general import KEYBOARD_LAYOUTS, _layout_label, read_input_conf
 from src.pages.wallpaper import get_current_wallpaper
 from src.pages.wifi import get_active_wifi_connection, has_wifi_adapter
 
@@ -43,9 +43,11 @@ _QUICK_ACTIONS = [
 
 
 def _layout_display_name(code: str) -> str:
-    for xkb_code, label in KEYBOARD_LAYOUTS:
-        if xkb_code == code:
-            return f"{label}  ({code})"
+    labels = dict(KEYBOARD_LAYOUTS)
+    parts = [part.strip() for part in code.split(",") if part.strip()]
+    if parts and all(part in labels for part in parts):
+        names = ", ".join(_layout_label(labels[part]) for part in parts)
+        return f"{names}  ({code})"
     return code
 
 
@@ -157,7 +159,7 @@ class HomePage(Gtk.Box):
         return group
 
     def _on_nav_activated(self, _row, page_name: str):
-        self.main_window.stack.set_visible_child_name(page_name)
+        self.main_window.navigate(page_name)
 
     # ── Data ──────────────────────────────────────────────────────────────────
 

@@ -358,6 +358,17 @@ TRANSLATIONS_DE.update({
     "Also applies to the hardware brightness keys": "Gilt auch für die Hardware-Helligkeitstasten",
     "Also limits the hardware volume keys": "Begrenzt auch die Hardware-Lautstärketasten",
     "Could not update variables.lua": "variables.lua konnte nicht aktualisiert werden",
+    "Written to variables.lua and applied on the next Hyprland reload.": "Wird in variables.lua geschrieben und bei der nächsten Hyprland-Neuladung angewendet.",
+    "Could not update variables.lua ({key})": "variables.lua konnte nicht aktualisiert werden ({key})",
+    "No monitor": "Kein Monitor",
+    "Monitor: {name}": "Monitor: {name}",
+    "Default {key}": "Standard: {key}",
+    "The dispatcher {name} is not supported in Lua mode.": "Der Dispatcher {name} wird im Lua-Modus nicht unterstützt.",
+    "gammastep stopped — resetting gamma…": "gammastep gestoppt — Gamma wird zurückgesetzt…",
+    "Low battery": "Batterie schwach",
+    "You might want to plug in a charger": "Du solltest vielleicht ein Ladegerät anschließen",
+    "{action}?": "{action}?",
+    "The system will {action} now.": "Das System wird jetzt {action}.",
 })
 
 

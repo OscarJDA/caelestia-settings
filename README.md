@@ -4,7 +4,7 @@
 >
 > This is a personal fork of [Jojo252511/caelestia-settings](https://github.com/Jojo252511/caelestia-settings), maintained by [OscarJDA](https://github.com/OscarJDA). It adds a schema-driven settings engine, 41 configuration pages, a Hyprland override layer, full Spanish (Mexico) localization and several hotfixes.
 
-![Version](https://img.shields.io/badge/version-1.6.0-blue)
+![Version](https://img.shields.io/badge/version-1.6.1-blue)
 ![Platform](https://img.shields.io/badge/platform-Arch%20Linux-1793d1)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Language](https://img.shields.io/badge/i18n-EN%20%2F%20DE%20%2F%20ES-orange)
@@ -186,7 +186,7 @@
 ### Default Apps
 - Caelestia terminal, file manager, audio and media player
 - Hyprland terminal, browser, editor, file manager and audio variables
-- Writes `shell.json` and `hypr-vars.lua`, then reloads Hyprland
+- Writes `shell.json` and `~/.config/hypr/variables.lua`, then reloads Hyprland
 
 ### Clipboard
 - Browse and filter cliphist history
