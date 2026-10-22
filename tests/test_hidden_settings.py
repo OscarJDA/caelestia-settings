@@ -7,6 +7,16 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# The real extension is built/installed in the full app environment.  The
+# tests only exercise pure Python paths, so provide a stub when it is absent
+# (as on the CI runner).
+try:
+    import caelestia_core  # noqa: F401
+except ImportError:
+    from unittest.mock import MagicMock
+
+    sys.modules["caelestia_core"] = MagicMock()
+
 import src.hypr_vars as hypr_vars
 from src.pages import keybinds, services
 from src.safe_io import read_json
