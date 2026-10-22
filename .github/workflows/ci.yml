@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       # The system python3 is used on purpose: PyGObject and the NM typelib
       # come from apt and are not visible to a setup-python interpreter.
-      - run: sudo apt-get update && sudo apt-get install -y python3-gi gir1.2-nm-1.0
+      - run: sudo apt-get update && sudo apt-get install -y python3-gi gir1.2-nm-1.0 gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gdkpixbuf-2.0
       - run: python3 -m unittest discover -s tests -v
 
   lint-rust:
