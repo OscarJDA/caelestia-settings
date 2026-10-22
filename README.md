@@ -22,6 +22,8 @@
 - System monitor, weather, media and calendar widgets, stored in `~/.config/caelestia-settings/desktop_widgets.json`
 - Fixed corner placement with per-widget scale and visibility controls
 
+> The system, weather, media and calendar widgets are rendered by the companion Caelestia shell background module; this app writes their configuration and watches it live.
+
 ### Wallpaper
 - Image and video tabs — browse `~/Pictures/Wallpapers/` and `~/Videos/Wallpaper/`
 - Thumbnails generated via ffmpeg for videos, cached for fast reloads
