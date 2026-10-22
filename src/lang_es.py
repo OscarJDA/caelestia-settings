@@ -1549,3 +1549,41 @@ TRANSLATIONS_ES.update({
 TRANSLATIONS_ES.update({
     "Default {key}": "Predeterminado: {key}",
 })
+
+TRANSLATIONS_ES.update({
+    "Desktop Widgets": "Widgets de escritorio",
+    "Desktop clock": "Reloj de escritorio",
+    "Native clock widget rendered by Caelestia on the desktop.": "Reloj nativo que Caelestia muestra en el escritorio.",
+    "Audio visualiser": "Visualizador de audio",
+    "Native audio visualiser rendered behind desktop windows.": "Visualizador de audio nativo que se dibuja detrás de las ventanas del escritorio.",
+    "Enable visualiser": "Habilitar visualizador",
+    "Auto-hide": "Ocultar automáticamente",
+    "Hide when there are no floating windows": "Ocultar cuando no haya ventanas flotantes",
+    "Blur wallpaper": "Desenfocar fondo de pantalla",
+    "Rounding scale": "Escala de redondeo",
+    "System monitor": "Monitor del sistema",
+    "CPU, GPU, memory, storage and network usage.": "Uso de CPU, GPU, memoria, almacenamiento y red.",
+    "Show widget": "Mostrar widget",
+    "Corner": "Esquina",
+    "Show CPU": "Mostrar CPU",
+    "Show GPU": "Mostrar GPU",
+    "Show memory": "Mostrar memoria",
+    "Show storage": "Mostrar almacenamiento",
+    "Show network": "Mostrar red",
+    "Calendar": "Calendario",
+    "Shadow": "Sombra",
+    "Shadow opacity": "Opacidad de la sombra",
+    "Shadow blur": "Desenfoque de la sombra",
+})
+
+TRANSLATIONS_ES.update({
+    "Desktop widgets": "Widgets de escritorio",
+    "Clock, visualiser, system monitor, weather, media and calendar": "Reloj, visualizador, monitor del sistema, clima, multimedia y calendario",
+    "Show, position and style the clock": "Mostrar, posicionar y personalizar el reloj",
+    "Weather widget": "Widget del clima",
+    "Current conditions on the desktop": "Condiciones actuales en el escritorio",
+    "Media widget": "Widget multimedia",
+    "Now playing on the desktop": "Reproducción actual en el escritorio",
+    "Calendar widget": "Widget de calendario",
+    "Month calendar on the desktop": "Calendario mensual en el escritorio",
+})

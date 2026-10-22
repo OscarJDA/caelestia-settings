@@ -17,6 +17,7 @@ from src.pages.clipboard import ClipboardPage
 from src.pages.config_editor import ConfigEditorPage
 from src.pages.dashboard import DashboardPage
 from src.pages.default_apps import DefaultAppsPage
+from src.pages.desktop_widgets import DesktopWidgetsPage
 from src.pages.diagnostics import DiagnosticsPage
 from src.pages.display import DisplayPage
 from src.pages.fans import FansPage
@@ -92,6 +93,9 @@ PAGE_ALIASES = {
     "services-user": "sys-services",
     "raw": "editor",
     "config": "editor",
+    "widgets": "widgets",
+    "desktop": "widgets",
+    "desktop-widgets": "widgets",
 }
 
 
@@ -217,6 +221,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._add_page("theming", ThemingPage(self), t("Theming"))
         self._add_page("typography", TypographyPage(self), t("Typography"))
         self._add_page("bar", BarPage(self), t("Bar"))
+        self._add_page("widgets", DesktopWidgetsPage(self), t("Desktop Widgets"))
         self._add_page("launcher", LauncherPage(self), t("Launcher"))
         self._add_page("dashboard", DashboardPage(self), t("Dashboard"))
         self._add_page("sidebar", SidebarUtilitiesPage(self), t("Sidebar & Utilities"))

@@ -4,7 +4,7 @@
 >
 > This is a personal fork of [Jojo252511/caelestia-settings](https://github.com/Jojo252511/caelestia-settings), maintained by [OscarJDA](https://github.com/OscarJDA). It adds a schema-driven settings engine, 41 configuration pages, a Hyprland override layer, full Spanish (Mexico) localization and several hotfixes.
 
-![Version](https://img.shields.io/badge/version-1.6.1-blue)
+![Version](https://img.shields.io/badge/version-1.7.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Arch%20Linux-1793d1)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Language](https://img.shields.io/badge/i18n-EN%20%2F%20DE%20%2F%20ES-orange)
@@ -16,6 +16,11 @@
 ### Home
 - System at a Glance overview: current wallpaper (thumbnail preview), monitors summary, active Wi-Fi connection, keyboard layout, CPU/GPU temperatures with fan speeds
 - Quick Actions for one-click navigation to Wallpaper, Monitor, WLAN, Keybinds, and Updates pages
+
+### Desktop Widgets
+- Enable and position the native desktop clock and audio visualiser
+- System monitor, weather, media and calendar widgets, stored in `~/.config/caelestia-settings/desktop_widgets.json`
+- Fixed corner placement with per-widget scale and visibility controls
 
 ### Wallpaper
 - Image and video tabs — browse `~/Pictures/Wallpapers/` and `~/Videos/Wallpaper/`

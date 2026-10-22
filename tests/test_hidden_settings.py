@@ -19,6 +19,7 @@ except ImportError:
 
 import src.hypr_vars as hypr_vars
 from src.pages import keybinds, services
+from src.pages.desktop_widgets import DEFAULT_DESKTOP_WIDGETS, WIDGET_CORNER_CHOICES
 from src.safe_io import read_json
 from src.settings_schema import APPEARANCE_SPEC, BAR_SPEC, TYPOGRAPHY_SPEC, Expander, Option
 
@@ -118,6 +119,20 @@ class ServicesBackendTests(unittest.TestCase):
                 self.assertAlmostEqual(
                     read_json(shell)["services"]["brightnessIncrement"], 0.2
                 )
+
+
+class DesktopWidgetTests(unittest.TestCase):
+    def test_default_layout_avoids_the_default_clock_corner(self):
+        widgets = DEFAULT_DESKTOP_WIDGETS["widgets"]
+        self.assertEqual(widgets["system"]["corner"], "top-center")
+        self.assertEqual(widgets["weather"]["corner"], "top-right")
+        self.assertEqual(widgets["media"]["corner"], "bottom-left")
+        self.assertEqual(widgets["calendar"]["corner"], "bottom-center")
+
+    def test_all_widget_corners_are_available(self):
+        values = {value for value, _label in WIDGET_CORNER_CHOICES}
+        self.assertEqual(len(values), 9)
+        self.assertIn("middle-center", values)
 
 
 class KeybindLuaActionTests(unittest.TestCase):
