@@ -6,7 +6,7 @@ set -e
 APP_PID=$1
 
 # --- CONFIGURATION ---
-GIT_REPO_URL="https://github.com/OscarJDA/caelestia-settings-fork.git"
+GIT_REPO_URL="https://github.com/OscarJDA/caelestia-settings.git"
 GIT_BRANCH="main"
 TEMP_DIR="/tmp/caelestia-settings-update"
 

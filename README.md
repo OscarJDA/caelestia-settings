@@ -279,7 +279,7 @@
 
 | Keybinds | Wallpaper | Monitor |
 |----------|-----------|---------|
-| ![Keybinds](https://raw.githubusercontent.com/OscarJDA/caelestia-settings-fork/main/screenshots/keybinds.png) | ![Wallpaper](https://raw.githubusercontent.com/OscarJDA/caelestia-settings-fork/main/screenshots/wallpaper.png) | ![Monitor](https://raw.githubusercontent.com/OscarJDA/caelestia-settings-fork/main/screenshots/monitor.png) |
+| ![Keybinds](https://raw.githubusercontent.com/OscarJDA/caelestia-settings/main/screenshots/keybinds.png) | ![Wallpaper](https://raw.githubusercontent.com/OscarJDA/caelestia-settings/main/screenshots/wallpaper.png) | ![Monitor](https://raw.githubusercontent.com/OscarJDA/caelestia-settings/main/screenshots/monitor.png) |
 
 ---
 
@@ -300,8 +300,8 @@ rustup component add clippy rust-analyzer
 ### Install
 
 ```bash
-git clone https://github.com/OscarJDA/caelestia-settings-fork.git
-cd caelestia-settings-fork
+git clone https://github.com/OscarJDA/caelestia-settings.git
+cd caelestia-settings
 ./install.sh
 ```
 
@@ -329,7 +329,7 @@ confirmation prompt.
 
 `caelestia_core` is a hard dependency — build it into your environment first. Use `--system-site-packages` so the venv can also see the system `python-gobject` (PyGI) install; a plain venv won't have it and `python main.py` will fail with `ModuleNotFoundError: No module named 'gi'`. Activate the venv (rather than calling `.venv/bin/maturin` by path) so `maturin develop` reliably targets it instead of some other `.venv` it might auto-detect elsewhere:
 ```bash
-cd caelestia-settings-fork/rust/caelestia-py
+cd caelestia-settings/rust/caelestia-py
 python3 -m venv --system-site-packages .venv
 source .venv/bin/activate
 pip install maturin && maturin develop
@@ -337,7 +337,7 @@ pip install maturin && maturin develop
 
 Then, from the same activated environment:
 ```bash
-cd caelestia-settings-fork
+cd caelestia-settings
 python main.py
 ```
 

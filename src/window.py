@@ -55,7 +55,7 @@ from src.settings_engine import apply_search_highlight, make_backend_error_toast
 
 # Source of truth for "is a newer version out": the manifest.json committed
 # on main (the prod branch, see branching policy — dev is pre-release).
-MANIFEST_URL = "https://raw.githubusercontent.com/OscarJDA/caelestia-settings-fork/main/manifest.json"
+MANIFEST_URL = "https://raw.githubusercontent.com/OscarJDA/caelestia-settings/main/manifest.json"
 
 PAGE_ALIASES = {
     "hypr": "hypr-general",
