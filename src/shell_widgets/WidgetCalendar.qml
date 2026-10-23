@@ -24,15 +24,18 @@ WidgetCard {
     readonly property bool isCurrentMonth: root.monthOffset === 0
     readonly property int firstDay: root.opts.startOfWeek === "monday" ? 1 : root.opts.startOfWeek === "sunday" ? 7 : Qt.locale().firstDayOfWeek
     readonly property bool weekNumbers: root.opts.weekNumbers === true
+    readonly property bool showWeekdays: root.opts.showWeekdays !== false
+    readonly property int firstOffset: {
+        const first = new Date(root.shownYear, root.shownMonth, 1);
+        return (first.getDay() - (root.firstDay % 7) + 7) % 7;
+    }
     readonly property var cells: root.buildCells(root.shownYear, root.shownMonth)
     readonly property var gridCells: root.buildGrid(root.cells)
 
     function buildCells(year: int, month: int): var {
-        const first = new Date(year, month, 1);
-        const offset = (first.getDay() - (root.firstDay % 7) + 7) % 7;
         const days = new Date(year, month + 1, 0).getDate();
         const cells = [];
-        for (let i = 0; i < offset; i++)
+        for (let i = 0; i < root.firstOffset; i++)
             cells.push(0);
         for (let i = 1; i <= days; i++)
             cells.push(i);
@@ -47,8 +50,8 @@ WidgetCard {
 
         const rows = [];
         for (let row = 0; row < 6; row++) {
-            const day = cells[row * 7] || 1;
-            rows.push({ week: root.isoWeek(new Date(root.shownYear, root.shownMonth, day)) });
+            const weekDate = new Date(root.shownYear, root.shownMonth, 1 - root.firstOffset + row * 7);
+            rows.push({ week: root.isoWeek(weekDate) });
             for (let column = 0; column < 7; column++)
                 rows.push({ day: cells[row * 7 + column] });
         }
@@ -124,7 +127,8 @@ WidgetCard {
                 required property var modelData
 
                 Layout.fillWidth: true
-                implicitHeight: 20 * root.widgetScale
+                visible: root.showWeekdays
+                implicitHeight: root.showWeekdays ? 20 * root.widgetScale : 0
 
                 StyledText {
                     anchors.centerIn: parent

@@ -15,20 +15,24 @@ WidgetCard {
     id: root
 
     title: tr("Battery", "Batería", "Akku")
-    iconName: Icons.getBatteryIcon(battery.percentage, battery.charging)
+    iconName: Icons.getBatteryIcon(root.level, root.charging)
     cardWidth: 280
 
     readonly property var battery: UPower.displayDevice
-    readonly property bool hasBattery: battery.isLaptopBattery
-    readonly property real level: Math.max(0, Math.min(1, battery.percentage ?? 0))
-    readonly property bool charging: [UPowerDeviceState.Charging, UPowerDeviceState.FullyCharged, UPowerDeviceState.PendingCharge].includes(battery.state)
+    // The display device does not expose the battery health; the real battery
+    // device does.  healthPercentage is already a percentage (0-100).
+    readonly property var batteryDevice: (UPower.devices?.values ?? []).find(device => device.isLaptopBattery) ?? root.battery
+    readonly property real health: root.batteryDevice?.healthPercentage ?? 0
+    readonly property bool hasBattery: root.battery?.isLaptopBattery ?? false
+    readonly property real level: Math.max(0, Math.min(1, root.battery?.percentage ?? 0))
+    readonly property bool charging: root.battery ? [UPowerDeviceState.Charging, UPowerDeviceState.FullyCharged, UPowerDeviceState.PendingCharge].includes(root.battery.state) : false
     readonly property bool low: root.level * 100 <= (root.opts.lowThreshold ?? 20)
     readonly property color levelColour: root.charging ? Colours.palette.m3tertiary : (root.low ? Colours.palette.m3error : root.accentColour)
 
     property string profile: ""
 
     function stateText(): string {
-        switch (root.battery.state) {
+        switch (root.battery?.state) {
         case UPowerDeviceState.Charging:
             return root.tr("Charging", "Cargando", "Wird geladen");
         case UPowerDeviceState.FullyCharged:
@@ -45,7 +49,7 @@ WidgetCard {
     }
 
     function timeText(): string {
-        const seconds = root.charging ? root.battery.timeToFull : root.battery.timeToEmpty;
+        const seconds = root.charging ? root.battery?.timeToFull : root.battery?.timeToEmpty;
         if (!seconds || seconds <= 0)
             return "";
         const hours = Math.floor(seconds / 3600);
@@ -138,8 +142,8 @@ WidgetCard {
 
             StyledText {
                 Layout.fillWidth: true
-                visible: root.opts.showHealth === true && root.hasBattery
-                text: root.tr("Health", "Salud", "Gesundheit") + ": " + Math.round((root.battery.healthPercentage ?? 0) * 100) + "%"
+                visible: root.opts.showHealth === true && root.hasBattery && root.health > 0
+                text: root.tr("Health", "Salud", "Gesundheit") + ": " + Math.round(root.health) + "%"
                 color: Colours.palette.m3outline
                 font: Tokens.font.label.builders.small.scale(root.widgetScale).build()
             }
@@ -172,7 +176,7 @@ WidgetCard {
         WidgetIconButton {
             icon: "swap_horiz"
             widgetScale: root.widgetScale
-            enabled: root.profile !== ""
+            disabled: root.profile === ""
             onClicked: root.cycleProfile()
         }
     }

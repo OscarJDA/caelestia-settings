@@ -65,8 +65,13 @@ WidgetCard {
     }
 
     function skip(): void {
-        const next = root.phase === "work" ? (root.completed % root.longEvery === 0 ? "long" : "short") : "work";
-        root.setPhase(next, false);
+        if (root.phase === "work") {
+            root.completed += 1;
+            const longBreak = root.completed % root.longEvery === 0;
+            root.setPhase(longBreak ? "long" : "short", false);
+            return;
+        }
+        root.setPhase("work", false);
     }
 
     function reset(): void {

@@ -92,14 +92,14 @@ WidgetCard {
         WidgetIconButton {
             icon: "flag"
             widgetScale: root.widgetScale
-            enabled: root.running || root.elapsed > 0
+            disabled: !(root.running || root.elapsed > 0)
             onClicked: root.addLap()
         }
 
         WidgetIconButton {
             icon: "restart_alt"
             widgetScale: root.widgetScale
-            enabled: root.running || root.elapsed > 0
+            disabled: !(root.running || root.elapsed > 0)
             onClicked: root.reset()
         }
     }

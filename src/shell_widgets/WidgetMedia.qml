@@ -18,17 +18,46 @@ WidgetCard {
     readonly property var player: Players.active
     readonly property bool playing: root.player?.isPlaying ?? false
     readonly property string artUrl: root.player ? Players.getArtUrl(root.player) : ""
-    readonly property real progress: (root.player && root.player.length > 0) ? Math.max(0, Math.min(1, root.player.position / root.player.length)) : 0
+    readonly property real length: root.player?.length ?? 0
 
+    property real position: 0
+
+    readonly property real progress: root.length > 0 ? Math.max(0, Math.min(1, root.position / root.length)) : 0
+
+    function syncPosition(): void {
+        root.position = root.player?.position ?? 0;
+    }
+
+    Component.onCompleted: root.syncPosition()
+
+    Connections {
+        target: Players
+
+        function onActiveChanged(): void {
+            root.syncPosition();
+        }
+    }
+
+    Connections {
+        target: root.player
+
+        function onPositionChanged(): void {
+            root.syncPosition();
+        }
+
+        function onLengthChanged(): void {
+            root.syncPosition();
+        }
+    }
+
+    // MPRIS only emits positionChanged on D-Bus updates and seeks, so sample
+    // the position to keep the progress bar moving during playback.
     Timer {
-        running: root.playing
-        interval: 1000
+        interval: root.playing ? 500 : 1000
+        running: root.player !== null
         repeat: true
         triggeredOnStart: true
-        onTriggered: {
-            if (root.player)
-                root.player.positionChanged();
-        }
+        onTriggered: root.syncPosition()
     }
 
     RowLayout {
@@ -94,7 +123,7 @@ WidgetCard {
                 WidgetIconButton {
                     icon: "skip_previous"
                     widgetScale: root.widgetScale
-                    enabled: root.player?.canGoPrevious ?? false
+                    disabled: !(root.player?.canGoPrevious ?? false)
                     onClicked: {
                         if (root.player?.canGoPrevious)
                             root.player.previous();
@@ -104,7 +133,7 @@ WidgetCard {
                 WidgetIconButton {
                     icon: root.playing ? "pause" : "play_arrow"
                     widgetScale: root.widgetScale
-                    enabled: root.player?.canTogglePlaying ?? false
+                    disabled: !(root.player?.canTogglePlaying ?? false)
                     onClicked: {
                         if (root.player?.canTogglePlaying)
                             root.player.togglePlaying();
@@ -114,7 +143,7 @@ WidgetCard {
                 WidgetIconButton {
                     icon: "skip_next"
                     widgetScale: root.widgetScale
-                    enabled: root.player?.canGoNext ?? false
+                    disabled: !(root.player?.canGoNext ?? false)
                     onClicked: {
                         if (root.player?.canGoNext)
                             root.player.next();
@@ -142,8 +171,8 @@ WidgetCard {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: mouse => {
-                if (root.player?.canSeek && root.player.length > 0)
-                    root.player.position = Math.max(0, Math.min(1, mouse.x / width)) * root.player.length;
+                if (root.player?.canSeek && root.length > 0)
+                    root.player.position = Math.max(0, Math.min(1, mouse.x / width)) * root.length;
             }
         }
     }

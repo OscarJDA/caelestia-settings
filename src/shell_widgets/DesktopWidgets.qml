@@ -258,13 +258,11 @@ Variants {
 
             readonly property var itemsAt: win.widgetsAt(column.corner)
 
-            width: {
-                let widest = 0;
-                for (const item of column.itemsAt)
-                    widest = Math.max(widest, Catalog.widthFor(item.type) * (item.scale ?? 1));
-                return widest;
-            }
-            
+            // Use the real widget width once the loaders have created their
+            // items.  The catalog width is only an estimate and a few cards
+            // (calendar, forecast) are wider than their catalog entry; using
+            // it here made the input mask clip their right edge.
+            width: implicitWidth
             height: implicitHeight
             spacing: win.gap
 
@@ -276,8 +274,8 @@ Variants {
 
                     required property var modelData
 
-                    implicitWidth: loader.item ? loader.item.implicitWidth : 0
-                    implicitHeight: loader.item ? loader.item.implicitHeight : 0
+                    implicitWidth: loader.item && loader.item.visible ? loader.item.implicitWidth : 0
+                    implicitHeight: loader.item && loader.item.visible ? loader.item.implicitHeight : 0
                     width: implicitWidth
                     height: implicitHeight
 

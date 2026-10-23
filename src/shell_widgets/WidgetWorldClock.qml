@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Caelestia.Config
+import Caelestia.I18n
 import qs.components
 import qs.services
 
@@ -39,7 +40,7 @@ WidgetCard {
         const local = root.now;
         const utc = local.getTime() + local.getTimezoneOffset() * 60000;
         const city = new Date(utc + offset * 3600000);
-        const twelve = root.opts.format === "12h";
+        const twelve = root.opts.format === "12h" || (root.opts.format !== "24h" && Units.twelveHourClock);
         return Qt.formatDateTime(city, twelve ? "h:mm AP" : "HH:mm");
     }
 
