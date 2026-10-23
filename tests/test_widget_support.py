@@ -146,5 +146,90 @@ class BundleTests(unittest.TestCase):
         self.assertNotIn("SOURCE.md", names)
 
 
+class GenerationTests(WidgetSupportTestCase):
+    def test_legacy_shell_is_detected(self):
+        (self.shell / "services").mkdir()
+        (self.shell / "services" / "Notifs.qml").write_text(
+            "property alias dnd: props.dnd\n", encoding="utf-8"
+        )
+        (self.shell / "services" / "GameMode.qml").write_text(
+            "property alias enabled: props.enabled\n", encoding="utf-8"
+        )
+        self.assertEqual(widget_support.shell_generation(), "legacy")
+
+    def test_modern_shell_is_detected(self):
+        (self.shell / "services").mkdir()
+        (self.shell / "services" / "Notifs.qml").write_text(
+            "return PersistentState.doNotDisturb;\n", encoding="utf-8"
+        )
+        (self.shell / "daemons").mkdir()
+        (self.shell / "daemons" / "GameMode.qml").write_text(
+            "return RuntimeState.gameMode;\n", encoding="utf-8"
+        )
+        self.assertEqual(widget_support.shell_generation(), "modern")
+
+    def test_shell_without_probes_is_unknown(self):
+        self.assertEqual(widget_support.shell_generation(), "unknown")
+
+
+class CompatibilityTests(WidgetSupportTestCase):
+    def make_modern(self) -> None:
+        (self.shell / "services").mkdir()
+        (self.shell / "services" / "Notifs.qml").write_text(
+            "return PersistentState.doNotDisturb;\n", encoding="utf-8"
+        )
+        (self.shell / "daemons").mkdir()
+        (self.shell / "daemons" / "GameMode.qml").write_text(
+            "return RuntimeState.gameMode;\n", encoding="utf-8"
+        )
+
+    def read_widget(self, name: str) -> str:
+        return (self.module / name).read_text(encoding="utf-8")
+
+    def test_modern_shell_gets_state_bindings(self):
+        self.make_modern()
+
+        result = widget_support.install()
+
+        self.assertEqual(result.generation, "modern")
+        notifications = self.read_widget("WidgetNotifications.qml")
+        actions = self.read_widget("WidgetQuickActions.qml")
+        self.assertNotIn("Notifs.dnd", notifications)
+        self.assertNotIn("Notifs.dnd", actions)
+        self.assertNotIn("GameMode.enabled", actions)
+        self.assertIn("PersistentState.doNotDisturb", notifications)
+        self.assertIn("RuntimeState.gameMode", actions)
+        self.assertIn("import Caelestia.State", notifications)
+        self.assertIn("import Caelestia.State", actions)
+
+    def test_modern_import_is_added_once(self):
+        self.make_modern()
+
+        widget_support.install()
+        widget_support.install()
+
+        notifications = self.read_widget("WidgetNotifications.qml")
+        self.assertEqual(notifications.count("import Caelestia.State"), 1)
+
+    def test_legacy_shell_keeps_legacy_bindings(self):
+        (self.shell / "services").mkdir()
+        (self.shell / "services" / "Notifs.qml").write_text(
+            "property alias dnd: props.dnd\n", encoding="utf-8"
+        )
+
+        result = widget_support.install()
+
+        self.assertEqual(result.generation, "legacy")
+        notifications = self.read_widget("WidgetNotifications.qml")
+        self.assertIn("Notifs.dnd", notifications)
+        self.assertNotIn("import Caelestia.State", notifications)
+
+    def test_unknown_shell_keeps_legacy_bindings(self):
+        result = widget_support.install()
+
+        self.assertEqual(result.generation, "unknown")
+        self.assertIn("Notifs.dnd", self.read_widget("WidgetNotifications.qml"))
+
+
 if __name__ == "__main__":
     unittest.main()

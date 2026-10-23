@@ -21,7 +21,7 @@
 - Enable and position the native desktop clock and audio visualiser
 - 24 widget types (system monitor, weather, media, calendar, pomodoro, notes and more), stored in `~/.config/caelestia-settings/desktop_widgets.json`
 - Fixed corner placement with per-widget scale, ordering and visibility controls
-- Detects whether the shell can render the cards. With the official shell you can install the bundled widget module from the app (with a timestamped backup), or use the [Caelestia shell fork](https://github.com/OscarJDA/caelestia-shell-fork). Until support is installed, only the native clock and visualiser stay editable.
+- Detects whether the shell can render the cards. With the official shell you can install the bundled widget module from the app (with a timestamped backup), or use the [Caelestia shell fork](https://github.com/OscarJDA/caelestia-shell-fork). The installer adapts the DND and game-mode bindings to the shell generation (legacy `Notifs.dnd` / `GameMode.enabled` or current `PersistentState` / `RuntimeState`). Until support is installed, only the native clock and visualiser stay editable.
 
 > The cards are rendered by the companion Caelestia shell background module; this app writes their configuration and watches it live.
 
