@@ -19,10 +19,11 @@
 
 ### Desktop Widgets
 - Enable and position the native desktop clock and audio visualiser
-- System monitor, weather, media and calendar widgets, stored in `~/.config/caelestia-settings/desktop_widgets.json`
-- Fixed corner placement with per-widget scale and visibility controls
+- 24 widget types (system monitor, weather, media, calendar, pomodoro, notes and more), stored in `~/.config/caelestia-settings/desktop_widgets.json`
+- Fixed corner placement with per-widget scale, ordering and visibility controls
+- Detects whether the shell can render the cards. With the official shell you can install the bundled widget module from the app (with a timestamped backup), or use the [Caelestia shell fork](https://github.com/OscarJDA/caelestia-shell-fork). Until support is installed, only the native clock and visualiser stay editable.
 
-> The system, weather, media and calendar widgets are rendered by the companion Caelestia shell background module; this app writes their configuration and watches it live.
+> The cards are rendered by the companion Caelestia shell background module; this app writes their configuration and watches it live.
 
 ### Wallpaper
 - Image and video tabs — browse `~/Pictures/Wallpapers/` and `~/Videos/Wallpaper/`

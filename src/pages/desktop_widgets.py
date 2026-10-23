@@ -6,6 +6,10 @@ Widgets are rendered by ``DesktopWidgets.qml`` in the shell.  Instances live in
 
 The old four-slot format (v1) is migrated automatically the first time this
 page is opened.
+
+The cards need QML support in the shell.  When it is missing, the page offers
+to install the bundled widget module and disables the options that the stock
+Caelestia shell cannot honour; the native clock and visualiser stay editable.
 """
 
 from __future__ import annotations
@@ -17,8 +21,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, Gtk  # noqa: E402
 
+from src import widget_support
 from src.config import CAELESTIA_SHELL_JSON
 from src.lang import t
 from src.settings_engine import JsonFileBackend, ShellBackend, make_backend_error_toast
@@ -138,6 +143,8 @@ class DesktopWidgetsPage(Adw.PreferencesPage):
                 self.remove(group)
             self._groups = []
             self._bindings.clear()
+            self._support_ready = widget_support.is_installed()
+            self._build_support()
             self._build_appearance()
             self._build_instances()
             self._build_native()
@@ -148,6 +155,93 @@ class DesktopWidgetsPage(Adw.PreferencesPage):
         self._groups.append(group)
         self.add(group)
 
+    # ── Shell support ───────────────────────────────────────────────────────
+
+    def _build_support(self) -> None:
+        group = Adw.PreferencesGroup(title=t("Desktop widget support"))
+        shell = widget_support.shell_dir()
+        display = str(shell).replace(str(Path.home()), "~", 1)
+
+        if self._support_ready:
+            row = Adw.ActionRow(
+                title=t("Support installed"),
+                subtitle=t("Widget files found in {path}").format(path=display),
+            )
+            row.add_prefix(Gtk.Image.new_from_icon_name("emblem-ok-symbolic"))
+            group.add(row)
+        else:
+            row = Adw.ActionRow(
+                title=t("Support not installed"),
+                subtitle=t(
+                    "The Caelestia shell cannot draw these widgets until the support files are installed."
+                ),
+            )
+            row.add_prefix(Gtk.Image.new_from_icon_name("dialog-warning-symbolic"))
+            group.add(row)
+
+            install_row = Adw.ActionRow(
+                title=t("Install support files"),
+                subtitle=t(
+                    "Copies the widget QML into the shell and patches shell.qml. A backup is created first."
+                ),
+            )
+            install = Gtk.Button(label=t("Install"))
+            install.add_css_class("suggested-action")
+            install.set_valign(Gtk.Align.CENTER)
+            install.connect("clicked", lambda _button: self._confirm_install())
+            install_row.add_suffix(install)
+            group.add(install_row)
+
+        fork_row = Adw.ActionRow(
+            title=t("Use the Caelestia shell fork"),
+            subtitle=widget_support.FORK_URL,
+        )
+        fork_row.set_activatable(True)
+        fork_row.add_suffix(Gtk.Image.new_from_icon_name("adw-external-link-symbolic"))
+        fork_row.connect("activated", lambda _row: self._open_url(widget_support.FORK_URL))
+        group.add(fork_row)
+        self._add_group(group)
+
+    def _open_url(self, url: str) -> None:
+        try:
+            Gio.AppInfo.launch_default_for_uri(url, None)
+        except Exception:
+            self._toast(t("Could not open the link"))
+
+    def _confirm_install(self) -> None:
+        display = str(widget_support.shell_dir()).replace(str(Path.home()), "~", 1)
+        dialog = Adw.AlertDialog(
+            heading=t("Install widget support?"),
+            body=t(
+                "The widget QML will be copied to {path} and shell.qml will be patched. A backup is created first."
+            ).format(path=display),
+        )
+        dialog.add_response("cancel", t("Cancel"))
+        dialog.add_response("install", t("Install"))
+        dialog.set_response_appearance("install", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("install")
+        dialog.set_close_response("cancel")
+
+        def on_response(_dialog, response: str) -> None:
+            if response == "install":
+                self._install_support()
+
+        dialog.connect("response", on_response)
+        dialog.present(self.get_root())
+
+    def _install_support(self) -> None:
+        try:
+            widget_support.install()
+        except (widget_support.WidgetSupportError, OSError) as exc:
+            self._toast(t("Could not install widget support: {error}").format(error=exc))
+            return
+        self._toast(t("Widget support installed — the shell will reload"))
+        self._build()
+
+    def _toast(self, message: str) -> None:
+        if hasattr(self.main_window, "add_toast"):
+            self.main_window.add_toast(Adw.Toast.new(message))
+
     def _build_appearance(self) -> None:
         group = Adw.PreferencesGroup(
             title=t("Widget appearance"),
@@ -155,6 +249,9 @@ class DesktopWidgetsPage(Adw.PreferencesPage):
                 "Material cards drawn above the wallpaper. Changes apply immediately in the shell."
             ),
         )
+        if not self._support_ready:
+            group.set_description(t("Install widget support to use these options."))
+            group.set_sensitive(False)
 
         style = Adw.ActionRow(title=t("Card style"))
         combo = Gtk.ComboBoxText()
@@ -231,6 +328,9 @@ class DesktopWidgetsPage(Adw.PreferencesPage):
             title=t("Desktop widgets"),
             description=t("Add as many widgets as you like and place them in nine fixed zones."),
         )
+        if not self._support_ready:
+            group.set_description(t("Install widget support to use these options."))
+            group.set_sensitive(False)
 
         add_button = Gtk.Button(icon_name="list-add-symbolic")
         add_button.set_valign(Gtk.Align.CENTER)

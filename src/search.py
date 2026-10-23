@@ -49,6 +49,7 @@ STATIC_ENTRIES: tuple[tuple[str, str, str, str, str], ...] = (
     ("widgets", "Desktop Widgets", "Desktop widgets", "Clock, weather, media, system and productivity cards", "desktop widgets clock weather media system productivity cards zones"),
     ("widgets", "Desktop Widgets", "Add widget", "Add, duplicate and arrange widget instances", "add widget instance duplicate zone corner"),
     ("widgets", "Desktop Widgets", "Widget appearance", "Card style, opacity, screen margin and accent colour", "appearance material glass minimal opacity accent margin gap"),
+    ("widgets", "Desktop Widgets", "Desktop widget support", "Install the widget QML support or use the shell fork", "support install fork shell qml missing"),
     ("widgets", "Desktop Widgets", "Desktop clock", "Show, position and style the native clock", "desktop clock time"),
     ("widgets", "Desktop Widgets", "Native audio visualiser", "Visualiser drawn behind desktop windows", "visualiser audio cava bars"),
     ("wall", "Wallpaper", "Wallpaper", "Browse images and videos, random wallpaper", "background picture video"),

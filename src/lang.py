@@ -538,6 +538,21 @@ TRANSLATIONS_DE.update({
     'Native desktop clock': 'Native Desktop-Uhr',
     'Native audio visualiser': 'Nativer Audio-Visualisierer',
     'Clock, weather, media, system and productivity cards': 'Karten für Uhr, Wetter, Medien, System und Produktivität',
+    'Desktop widget support': 'Unterstützung für Desktop-Widgets',
+    'Support installed': 'Unterstützung installiert',
+    'Widget files found in {path}': 'Widget-Dateien gefunden in {path}',
+    'Support not installed': 'Unterstützung nicht installiert',
+    'The Caelestia shell cannot draw these widgets until the support files are installed.': 'Die Caelestia-Shell kann diese Widgets erst zeichnen, wenn die Unterstützungsdateien installiert sind.',
+    'Install support files': 'Unterstützungsdateien installieren',
+    'Copies the widget QML into the shell and patches shell.qml. A backup is created first.': 'Kopiert die Widget-QML in die Shell und ergänzt shell.qml. Zuvor wird eine Sicherung erstellt.',
+    'Install': 'Installieren',
+    'Use the Caelestia shell fork': 'Caelestia-Shell-Fork verwenden',
+    'Install widget support?': 'Widget-Unterstützung installieren?',
+    'The widget QML will be copied to {path} and shell.qml will be patched. A backup is created first.': 'Die Widget-QML wird nach {path} kopiert und shell.qml wird ergänzt. Zuvor wird eine Sicherung erstellt.',
+    'Widget support installed — the shell will reload': 'Widget-Unterstützung installiert — die Shell wird neu geladen',
+    'Could not install widget support: {error}': 'Widget-Unterstützung konnte nicht installiert werden: {error}',
+    'Could not open the link': 'Link konnte nicht geöffnet werden',
+    'Install widget support to use these options.': 'Installiere die Widget-Unterstützung, um diese Optionen zu verwenden.',
 })
 
 
