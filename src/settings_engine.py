@@ -131,6 +131,32 @@ class JsonFileBackend:
     def get(self, key: str, kind: str | None = None, default=None):
         return get_path(self._read(), key, default)
 
+    def mutate(self, mutator, label: str | None = None, record: bool = True) -> bool:
+        """Apply ``mutator(data)`` to the whole document and save it.
+
+        Used for structural edits (adding, removing or reordering entries)
+        where there is no single dotted path to write.
+        """
+        data = self._read()
+        before = copy.deepcopy(data)
+        mutator(data)
+        if data == before:
+            return False
+        after = copy.deepcopy(data)
+        atomic_write_json(self.path, data)
+        self._changed()
+        if record:
+            def undo() -> None:
+                atomic_write_json(self.path, copy.deepcopy(before))
+                self._changed()
+
+            def redo() -> None:
+                atomic_write_json(self.path, copy.deepcopy(after))
+                self._changed()
+
+            HISTORY.push(label or t("Widgets updated"), undo, redo)
+        return True
+
     def set(self, key: str, value, label: str | None = None, record: bool = True) -> bool:
         data = self._read()
         old = get_path(data, key, _MISSING)

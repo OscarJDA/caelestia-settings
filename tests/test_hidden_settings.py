@@ -19,7 +19,7 @@ except ImportError:
 
 import src.hypr_vars as hypr_vars
 from src.pages import keybinds, services
-from src.pages.desktop_widgets import DEFAULT_DESKTOP_WIDGETS, WIDGET_CORNER_CHOICES
+from src.widget_catalog import CORNERS, WIDGETS, default_config, migrate_v1
 from src.safe_io import read_json
 from src.settings_schema import APPEARANCE_SPEC, BAR_SPEC, TYPOGRAPHY_SPEC, Expander, Option
 
@@ -122,17 +122,51 @@ class ServicesBackendTests(unittest.TestCase):
 
 
 class DesktopWidgetTests(unittest.TestCase):
-    def test_default_layout_avoids_the_default_clock_corner(self):
-        widgets = DEFAULT_DESKTOP_WIDGETS["widgets"]
-        self.assertEqual(widgets["system"]["corner"], "top-center")
-        self.assertEqual(widgets["weather"]["corner"], "top-right")
-        self.assertEqual(widgets["media"]["corner"], "bottom-left")
-        self.assertEqual(widgets["calendar"]["corner"], "bottom-center")
+    def test_default_layout_avoids_the_native_clock_corner(self):
+        widgets = default_config()["widgets"]
+        self.assertEqual(widgets["clock-1"]["corner"], "top-center")
+        self.assertEqual(widgets["system-1"]["corner"], "top-right")
+        self.assertEqual(widgets["weather-1"]["corner"], "bottom-right")
+        self.assertEqual(widgets["media-1"]["corner"], "bottom-left")
+        self.assertEqual(widgets["calendar-1"]["corner"], "bottom-center")
 
     def test_all_widget_corners_are_available(self):
-        values = {value for value, _label in WIDGET_CORNER_CHOICES}
+        values = {value for value, _label in CORNERS}
         self.assertEqual(len(values), 9)
         self.assertIn("middle-center", values)
+
+    def test_every_widget_has_metadata_and_defaults(self):
+        self.assertGreaterEqual(len(WIDGETS), 20)
+        for widget_type, meta in WIDGETS.items():
+            self.assertTrue(meta["name"], widget_type)
+            self.assertTrue(meta["icon"], widget_type)
+            self.assertIn(meta["corner"], {value for value, _label in CORNERS})
+            for key, option in meta["options"].items():
+                self.assertIn(option["kind"], {"bool", "int", "float", "choice", "text"}, f"{widget_type}.{key}")
+                self.assertIn("default", option, f"{widget_type}.{key}")
+
+    def test_migration_keeps_old_options_and_corner(self):
+        migrated = migrate_v1(
+            {
+                "version": 1,
+                "widgets": {
+                    "system": {
+                        "enabled": True,
+                        "corner": "top-center",
+                        "scale": 1.5,
+                        "showGpu": False,
+                    },
+                    "weather": {"enabled": False, "corner": "top-right", "scale": 1.0},
+                },
+            }
+        )
+        self.assertEqual(migrated["version"], 2)
+        self.assertIn("system-1", migrated["widgets"])
+        system = migrated["widgets"]["system-1"]
+        self.assertEqual(system["corner"], "top-center")
+        self.assertEqual(system["scale"], 1.5)
+        self.assertFalse(system["options"]["showGpu"])
+        self.assertFalse(migrated["widgets"]["weather-1"]["enabled"])
 
 
 class KeybindLuaActionTests(unittest.TestCase):
