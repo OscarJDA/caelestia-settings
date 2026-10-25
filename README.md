@@ -105,6 +105,7 @@
 - Mouse sensitivity, acceleration profile, scroll method/button
 - Touchpad: natural scroll, tap-to-click/drag, drag lock, clickfinger, middle-button emulation, tap map, scroll factor
 - Follow-mouse, special-workspace fallthrough, focus-on-close and bind scroll delay
+- Mouse focus dead zone: pixels at the edge of inactive windows that will not steal focus (avoids scroll-layout jumps)
 
 ### Hyprland: Animations
 - Global animation toggle

@@ -599,6 +599,8 @@ TRANSLATIONS_ES.update({
     "Scroll factor": "Factor de desplazamiento",
     "Focus and binds": "Foco y atajos",
     "Follow mouse": "Seguir al ratón",
+    "Mouse focus dead zone": "Zona muerta del foco por ratón",
+    "Edge of inactive windows that will not grab focus (works with Follow mouse = Full)": "Borde de las ventanas inactivas que no robará el foco (funciona con Seguir al ratón = Completo)",
     "Special workspace fallthrough": "Paso a espacio especial",
     "Focus on close": "Enfocar al cerrar",
     "Scroll event delay": "Retardo de evento de desplazamiento",
