@@ -556,6 +556,21 @@ TRANSLATIONS_DE.update({
 })
 
 
+TRANSLATIONS_DE.update({
+    "Horizontal scale": "Horizontale Skalierung",
+    "Vertical scale": "Vertikale Skalierung",
+    "Style": "Stil",
+    "Curve": "Kurve",
+    "Pulse": "Puls",
+    "Colour source": "Farbquelle",
+    "Album art": "Albumcover",
+    "Theme accent": "Theme-Akzent",
+    "Bars": "Balken",
+    "Mirror bars": "Balken spiegeln",
+    "Show when idle": "Bei Stille anzeigen",
+})
+
+
 from src.lang_es import TRANSLATIONS_ES  # noqa: E402
 
 

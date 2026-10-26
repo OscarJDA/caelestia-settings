@@ -317,6 +317,18 @@ WIDGETS: dict[str, dict] = {
         "width": 320,
         "corner": "bottom-center",
         "options": {
+            "widthScale": _float("Horizontal scale", 1.0, 0.5, 4.0, 0.25),
+            "heightScale": _float("Vertical scale", 1.0, 0.5, 4.0, 0.25),
+            "style": _choice(
+                "Style",
+                "bars",
+                (("bars", "Bars"), ("curve", "Curve"), ("pulse", "Pulse")),
+            ),
+            "colorMode": _choice(
+                "Colour source",
+                "artwork",
+                (("artwork", "Album art"), ("accent", "Theme accent")),
+            ),
             "bars": _int("Bars", 48, 8, 128),
             "mirror": _bool("Mirror bars", True),
             "showWhenIdle": _bool("Show when idle", False),

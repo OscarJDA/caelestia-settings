@@ -1740,3 +1740,17 @@ TRANSLATIONS_ES.update({
     'Could not open the link': 'No se pudo abrir el enlace',
     'Install widget support to use these options.': 'Instala el soporte de widgets para usar estas opciones.',
 })
+
+TRANSLATIONS_ES.update({
+    "Horizontal scale": "Escala horizontal",
+    "Vertical scale": "Escala vertical",
+    "Style": "Estilo",
+    "Curve": "Curva",
+    "Pulse": "Pulso",
+    "Colour source": "Origen del color",
+    "Album art": "Carátula",
+    "Theme accent": "Acento del tema",
+    "Bars": "Barras",
+    "Mirror bars": "Reflejar barras",
+    "Show when idle": "Mostrar en silencio",
+})

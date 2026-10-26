@@ -214,6 +214,10 @@ const TYPES = {
         width: 320,
         corner: "bottom-center",
         options: {
+            widthScale: 1,
+            heightScale: 1,
+            style: "bars",
+            colorMode: "artwork",
             bars: 48,
             mirror: true,
             showWhenIdle: false

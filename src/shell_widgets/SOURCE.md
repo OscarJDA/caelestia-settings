@@ -8,4 +8,4 @@ Do not edit these files here. Refresh with:
 
     python3 tools/sync_shell_widgets.py /path/to/shell
 
-Source commit: fd2b042f
+Source commit: 1cc91a02
